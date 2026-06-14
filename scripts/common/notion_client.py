@@ -25,7 +25,10 @@ _client = None
 def client():
     global _client
     if _client is None:
-        _client = Client(auth=config.get("NOTION_TOKEN"))
+        # Notion API 버전을 안정적인 2022-06-28로 고정한다.
+        # (최신 버전은 데이터베이스를 'data sources' 구조로 반환해
+        #  databases.retrieve 응답에 properties가 최상위로 오지 않음)
+        _client = Client(auth=config.get("NOTION_TOKEN"), notion_version="2022-06-28")
     return _client
 
 
