@@ -2,7 +2,7 @@
 
 > 이 문서는 **이 프로젝트의 모든 것을 한눈에** 보기 위한 자체 참고서입니다.
 > 무엇을 왜 만들고, 각 단계 기준이 무엇이며, 지금까지 무엇이 바뀌었는지 기록합니다.
-> **매 단계가 끝날 때마다 갱신**됩니다. (마지막 갱신: 2026-06-14)
+> **매 단계가 끝날 때마다 갱신**됩니다. (마지막 갱신: 2026-06-14, Step 3 구현)
 
 ---
 
@@ -67,7 +67,10 @@
 - [x] **Step 2 — pykrx 수급 스캔** ✅ 완료·검증 (2026-06-14)
   - KRX 로그인 → 200종목 스캔 → 노션 C 저장 → 텔레그램 알림 전 구간 정상 확인
   - 기준을 '외인·기관 합산 순매수'로 완화 (첫 검증 0종목 → 완화). KRX 로그인 필수(아래 5번 참고)
-- [ ] **Step 3 — DART 공시 수집 (노션 B)** — DART 무료 키 필요
+- [ ] **Step 3 — DART 공시 수집 (노션 B)** ⏳ 구현 완료, 사용자 시크릿 등록 + 검증 대기
+  - `scripts/dart_scan.py` + `.github/workflows/dart_scan.yml` 작성 완료
+  - 가짜 데이터 단위 검증 통과 (금액 파싱 / 키워드 매칭 / 정렬 / 불릿 포맷)
+  - 실제 실행 전 사용자 준비 필요: `DART_API_KEY`, `NOTION_DB_B` 시크릿 등록
 - [ ] **Step 4 — Reddit 스캔 (노션 A)** — Reddit 키 필요, 스냅샷 누적 방식
 - [ ] **Step 5 — Claude 종합 분석 (노션 D)** — Claude 키는 여기서만 사용
 - [ ] **Step 6 — (선택) WordPress 임시저장**
@@ -76,7 +79,18 @@
 
 ## 5. 변경 이력 (Changelog)
 
-### 2026-06-14
+### 2026-06-14 (Step 3)
+- **Step 3 구현**: `scripts/dart_scan.py` + `.github/workflows/dart_scan.yml`
+  - DART `/list.json` (주요사항보고 B + 기타공시 E) 페이지네이션 + `rcept_no` 중복 제거
+  - 상장사 필터(`stock_code` 존재), 키워드 필터(수주·계약체결·특허·기술이전)
+  - 수주·계약 타입 → `/order.json` / `/cntrwk.json` 으로 금액 조회 → 시총 대비 10%+ 필터
+  - 금액 미파악(특허·기술이전 등)은 비율 필터 미적용, 목록에 "금액 미파악" 태그로 포함
+  - 노션 B: 🎯대형계약 섹션 + 전체 공시 섹션. 텔레그램 성공 알림
+  - 시총 캐시: pykrx KOSPI+KOSDAQ 한 번에 로드(KRX 로그인 필요, 기존 시크릿 재사용)
+  - 가짜 데이터 단위 테스트 통과(금액 파싱 / 키워드 매칭 / 정렬 / 불릿 포맷)
+- **Step 3 사용자 준비 필요**: `DART_API_KEY`(opendart.fss.or.kr 무료 발급) + `NOTION_DB_B` 등록 후 Actions 수동 실행으로 검증
+
+### 2026-06-14 (Step 2)
 - **Step 1 구현**: `scripts/common/`(config·logger·notify·notion_client) + `test_connection` 워크플로 + README.
 - **버그 수정**: 첫 실행 시 `KeyError: 'properties'` 발생 → 원인은 `notion-client` 최신 API가
   DB를 'data sources' 구조로 반환. **해결**: 노션 클라이언트를 `notion_version="2022-06-28"` 로 고정.
@@ -113,8 +127,8 @@
 | `TELEGRAM_CHAT_ID` | 텔레그램 수신 대상 | ✅ 등록됨 |
 | `NOTION_DB_C` | Step 2 수급 표 "C-수급" | ⏳ 사용자 등록 예정 |
 | `KRX_ID` / `KRX_PW` | Step 2 KRX 회원 로그인(데이터 조회 필수) | ⏳ 사용자 등록 예정 |
-| `NOTION_DB_B` | Step 3 DART 표 | ⏳ 예정 |
-| `DART_API_KEY` | Step 3 DART 공시 | ⏳ 예정 |
+| `NOTION_DB_B` | Step 3 DART 표 | ⏳ 사용자 등록 예정 |
+| `DART_API_KEY` | Step 3 DART 공시 (opendart.fss.or.kr 무료 발급) | ⏳ 사용자 등록 예정 |
 | `NOTION_DB_A` | Step 4 Reddit 표 | ⏳ 예정 |
 | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | Step 4 Reddit | ⏳ 예정 |
 | `NOTION_DB_D` / `ANTHROPIC_API_KEY` | Step 5 Claude 요약 | ⏳ 예정 |
@@ -131,7 +145,11 @@
 | 거래량 급증 배수 | `VOL_SURGE_MULT = 1.5` | `scripts/pykrx_scan.py` 상단 |
 | 52주 신고가권 비율 | `HIGH_NEAR_RATIO = 0.90` | `scripts/pykrx_scan.py` 상단 |
 | 수급: 조회 구간(달력일) | `LOOKBACK_DAYS = 15` | `scripts/pykrx_scan.py` 상단 |
-| 실행 시각 | cron `"30 7 * * *"` (=16:30 KST) | `.github/workflows/pykrx_scan.yml` |
+| 실행 시각 (수급) | cron `"30 7 * * *"` (=16:30 KST) | `.github/workflows/pykrx_scan.yml` |
+| 실행 시각 (DART) | cron `"0 7 * * *"` (=16:00 KST) | `.github/workflows/dart_scan.yml` |
+| DART: 키워드 | `KEYWORDS = ["수주","계약체결","특허","기술이전"]` | `scripts/dart_scan.py` 상단 |
+| DART: 대형계약 기준 | `RATIO_THRESHOLD = 0.10` (시총 대비 10%) | `scripts/dart_scan.py` 상단 |
+| DART: 공시 유형 | `PBLNTF_TYPES = ["B","E"]` (주요사항보고+기타공시) | `scripts/dart_scan.py` 상단 |
 | Claude 모델 | (예정) `claude-sonnet-4-6` 권장 | Step 5에서 설정 |
 
 > 값을 바꾸고 싶으면 나에게 "TOP_N을 100으로 줄여줘"처럼 말하면 해당 파일만 고쳐 푸시함.
@@ -156,9 +174,11 @@ scripts/
     notion_client.py   # 노션 쓰기 헬퍼 (API 버전 2022-06-28 고정)
   test_connection.py   # Step 1 연결 테스트
   pykrx_scan.py        # Step 2 수급 스캔
+  dart_scan.py         # Step 3 DART 공시 스캔
 .github/workflows/
   test_connection.yml  # 수동 실행
   pykrx_scan.yml       # 16:30 KST 자동 + 수동
+  dart_scan.yml        # 16:00 KST 자동 + 수동
 docs/
   PROJECT_LOG.md       # ← 이 문서
 requirements.txt
