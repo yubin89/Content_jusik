@@ -14,7 +14,6 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import requests
-from pykrx import stock
 
 from scripts.common import config, notify, notion_client
 from scripts.common.logger import get_logger
@@ -139,12 +138,20 @@ def fetch_contract_amount(api_key, corp_code, bgn_de, end_de, report_nm):
 def build_marketcap_cache(date):
     """KOSPI+KOSDAQ 전체 시가총액을 {ticker: int(원)} dict로 반환.
 
-    pykrx 1.2.8+ 는 KRX 회원 로그인(KRX_ID/KRX_PW)이 필수. 없으면 빈 dict.
+    pykrx 1.2.8+ 는 KRX 회원 로그인(KRX_ID/KRX_PW)이 필수.
+    KRX 서버 장애 또는 주말 등으로 import 자체가 실패하면 빈 dict 반환
+    (비율 필터만 건너뜀, DART 공시 수집은 정상 진행).
     """
+    try:
+        from pykrx import stock as _stock  # noqa: PLC0415 — KRX 장애 시 import 실패 방어
+    except Exception as exc:  # noqa: BLE001
+        log.warning("pykrx import 실패(KRX 서버 장애 가능성) — 시가총액 필터 건너뜀: %s", exc)
+        return {}
+
     cache = {}
     for market in ("KOSPI", "KOSDAQ"):
         try:
-            df = _retry(stock.get_market_cap_by_ticker, date, market=market)
+            df = _retry(_stock.get_market_cap_by_ticker, date, market=market)
             if df is None or df.empty:
                 continue
             cap_col = "시가총액" if "시가총액" in df.columns else next(
@@ -300,7 +307,7 @@ def main():
     kst_date_str = now_kst.strftime("%Y-%m-%d")
     bgn_de = end_de = now_kst.strftime("%Y%m%d")
 
-    # pykrx 1.2.8+ 는 KRX 회원 로그인이 필수(시가총액 조회용)
+    # KRX_ID/KRX_PW는 시가총액 캐시 조회에 필요. 단, KRX 장애 시 DART 스캔은 계속됨.
     config.require(["NOTION_TOKEN", "NOTION_DB_B", "DART_API_KEY", "KRX_ID", "KRX_PW"])
     db_id = config.get("NOTION_DB_B")
     api_key = config.get("DART_API_KEY")
@@ -308,11 +315,13 @@ def main():
     log.info("DART 스캔 시작: %s", kst_date_str)
 
     # 시가총액 캐시 (pykrx nearest_business_day 기준)
+    # pykrx import가 KRX 서버 장애로 실패해도 DART 스캔은 계속 진행
+    krx_date = bgn_de
     try:
-        krx_date = _retry(stock.get_nearest_business_day_in_a_week)
+        from pykrx import stock as _stock  # noqa: PLC0415
+        krx_date = _retry(_stock.get_nearest_business_day_in_a_week)
     except Exception as exc:  # noqa: BLE001
         log.warning("KRX 거래일 조회 실패, 오늘 날짜로 fallback: %s", exc)
-        krx_date = bgn_de
     marketcap_cache = build_marketcap_cache(krx_date)
 
     # DART 공시 목록 수집 (pblntf_ty B + E 병합)
