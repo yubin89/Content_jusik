@@ -67,10 +67,10 @@
 - [x] **Step 2 — pykrx 수급 스캔** ✅ 완료·검증 (2026-06-14)
   - KRX 로그인 → 200종목 스캔 → 노션 C 저장 → 텔레그램 알림 전 구간 정상 확인
   - 기준을 '외인·기관 합산 순매수'로 완화 (첫 검증 0종목 → 완화). KRX 로그인 필수(아래 5번 참고)
-- [ ] **Step 3 — DART 공시 수집 (노션 B)** ⏳ 구현 완료, 사용자 시크릿 등록 + 검증 대기
-  - `scripts/dart_scan.py` + `.github/workflows/dart_scan.yml` 작성 완료
-  - 가짜 데이터 단위 검증 통과 (금액 파싱 / 키워드 매칭 / 정렬 / 불릿 포맷)
-  - 실제 실행 전 사용자 준비 필요: `DART_API_KEY`, `NOTION_DB_B` 시크릿 등록
+- [x] **Step 3 — DART 공시 수집 (노션 B)** ✅ 완료·검증 (2026-06-14)
+  - `scripts/dart_scan.py` + `.github/workflows/dart_scan.yml`
+  - DART 조회 → 노션 B 저장 → 텔레그램 알림 전 구간 정상(run #5 success)
+  - 검증일이 일요일이라 공시 없음 → "데이터 없음" 페이지 정상 생성
 - [ ] **Step 4 — Reddit 스캔 (노션 A)** — Reddit 키 필요, 스냅샷 누적 방식
 - [ ] **Step 5 — Claude 종합 분석 (노션 D)** — Claude 키는 여기서만 사용
 - [ ] **Step 6 — (선택) WordPress 임시저장**
@@ -88,7 +88,13 @@
   - 노션 B: 🎯대형계약 섹션 + 전체 공시 섹션. 텔레그램 성공 알림
   - 시총 캐시: pykrx KOSPI+KOSDAQ 한 번에 로드(KRX 로그인 필요, 기존 시크릿 재사용)
   - 가짜 데이터 단위 테스트 통과(금액 파싱 / 키워드 매칭 / 정렬 / 불릿 포맷)
-- **Step 3 사용자 준비 필요**: `DART_API_KEY`(opendart.fss.or.kr 무료 발급) + `NOTION_DB_B` 등록 후 Actions 수동 실행으로 검증
+- **Step 3 이슈/수정 1 (pykrx lazy import)**: `from pykrx import stock`는 import 시점에 KRX 로그인을 시도함.
+  주말/KRX 장애 시 빈 응답 → `JSONDecodeError`로 모듈 import 자체가 실패 → 스크립트 전체 중단.
+  dart_scan에서 시총은 보조 기능이므로 pykrx import를 `build_marketcap_cache()`·`main()` 내부 **lazy import**로 변경.
+  import 실패 시 빈 캐시 반환 → 비율 필터만 건너뛰고 DART 공시 수집은 정상 완료. (수급 스캔과 달리 KRX 없이도 동작)
+- **Step 3 이슈/수정 2 (노션 페이지ID vs DB ID)**: `NOTION_DB_B`에 표를 담은 '페이지 ID'를 넣어
+  `Provided ID ... is a page, not a database` 오류. 표를 '전체 페이지로 열기' 후 URL의 **데이터베이스 ID**로 교체하여 해결.
+- **Step 3 검증 완료**: run #5 success — DART 조회→노션 B 저장→텔레그램 정상. (검증일 일요일이라 공시 없음→"데이터 없음" 페이지)
 
 ### 2026-06-14 (Step 2)
 - **Step 1 구현**: `scripts/common/`(config·logger·notify·notion_client) + `test_connection` 워크플로 + README.
@@ -125,10 +131,10 @@
 | `NOTION_TEST_DB` | Step 1 연결테스트 표 | ✅ 등록됨 |
 | `TELEGRAM_BOT_TOKEN` | 텔레그램 봇 | ✅ 등록됨 |
 | `TELEGRAM_CHAT_ID` | 텔레그램 수신 대상 | ✅ 등록됨 |
-| `NOTION_DB_C` | Step 2 수급 표 "C-수급" | ⏳ 사용자 등록 예정 |
-| `KRX_ID` / `KRX_PW` | Step 2 KRX 회원 로그인(데이터 조회 필수) | ⏳ 사용자 등록 예정 |
-| `NOTION_DB_B` | Step 3 DART 표 | ⏳ 사용자 등록 예정 |
-| `DART_API_KEY` | Step 3 DART 공시 (opendart.fss.or.kr 무료 발급) | ⏳ 사용자 등록 예정 |
+| `NOTION_DB_C` | Step 2 수급 표 "C-수급" | ✅ 등록됨 |
+| `KRX_ID` / `KRX_PW` | Step 2 KRX 회원 로그인(데이터 조회 필수) | ✅ 등록됨 |
+| `NOTION_DB_B` | Step 3 DART 표 "B-공시" (⚠️ 페이지ID 아닌 **데이터베이스 ID**) | ✅ 등록됨 |
+| `DART_API_KEY` | Step 3 DART 공시 (opendart.fss.or.kr 무료 발급) | ✅ 등록됨 |
 | `NOTION_DB_A` | Step 4 Reddit 표 | ⏳ 예정 |
 | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | Step 4 Reddit | ⏳ 예정 |
 | `NOTION_DB_D` / `ANTHROPIC_API_KEY` | Step 5 Claude 요약 | ⏳ 예정 |
