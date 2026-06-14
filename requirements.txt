@@ -1,7 +1,7 @@
-# Step 1 (공유 토대) 의존성
+# 파이프라인 의존성
 # 다음 단계에서 필요한 패키지는 해당 Step에서 추가합니다:
-#   Step 2(pykrx): pykrx
 #   Step 4(Reddit): praw
 #   Step 5(Claude): anthropic
 requests>=2.31
 notion-client>=2.2
+pykrx>=1.0          # Step 2: 한국거래소 수급 데이터

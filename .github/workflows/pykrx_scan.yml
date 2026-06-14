@@ -1,0 +1,30 @@
+name: pykrx_scan
+
+# 매일 16:30 KST(=07:30 UTC) 자동 실행 + 수동 실행(Run workflow) 가능
+on:
+  schedule:
+    - cron: "30 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pykrx supply-demand scan
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_C: ${{ secrets.NOTION_DB_C }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m scripts.pykrx_scan
