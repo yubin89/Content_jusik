@@ -78,14 +78,15 @@ def analyze_ticker(ticker, fromdate, todate):
     if inst_col is None or fore_col is None:
         return None
 
-    recent = df.tail(CONSECUTIVE_DAYS)
-    if not ((recent[inst_col] > 0).all() and (recent[fore_col] > 0).all()):
+    # (외인 + 기관) 합산 순매수 기준: 한쪽이 조금 팔아도 합쳐서 순매수면 인정
+    combined = df[inst_col] + df[fore_col]
+    if not (combined.tail(CONSECUTIVE_DAYS) > 0).all():
         return None
 
-    # 끝에서부터 둘 다 양수인 연속 일수(streak) 계산
+    # 끝에서부터 합산이 순매수(>0)인 연속 일수(streak) 계산
     streak = 0
-    for i in range(len(df) - 1, -1, -1):
-        if df[inst_col].iloc[i] > 0 and df[fore_col].iloc[i] > 0:
+    for i in range(len(combined) - 1, -1, -1):
+        if combined.iloc[i] > 0:
             streak += 1
         else:
             break
@@ -148,7 +149,7 @@ def main():
     title = f"\U0001f4c8 수급 스캔 {date} (KST {now_kst:%Y-%m-%d})"
     blocks = [
         notion_client.heading(
-            f"{CONSECUTIVE_DAYS}거래일+ 연속 외인·기관 동시 순매수 — {len(results)}종목", 2
+            f"{CONSECUTIVE_DAYS}거래일+ 연속 외인·기관 합산 순매수 — {len(results)}종목", 2
         ),
         notion_client.paragraph(
             f"대상: 코스피·코스닥 시총 상위 {len(tickers)}종목 / 기준일 {date}"
