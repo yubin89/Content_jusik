@@ -27,6 +27,13 @@ LOOKBACK_DAYS = 15     # 달력일 기준 조회 구간(최소 3거래일 확보
 SLEEP_BETWEEN = 0.3    # 종목 간 호출 간격(초) — KRX 부담 완화
 EOK = 100_000_000      # 원 → 억원 변환
 
+# ---- 추가 지표 설정 (수급 통과 종목에만 적용) ----
+VOL_SURGE_MULT = 2.0       # 최근 거래량 ≥ 최근 20거래일 평균의 N배 → 거래량 급증
+VOL_AVG_DAYS = 20          # 거래량 평균 기준 거래일 수
+HIGH_52W_DAYS = 252        # 52주 ≈ 252거래일
+HIGH_NEAR_RATIO = 0.97     # 52주 최고 종가의 N% 이상이면 신고가권(돌파/근접)
+OHLCV_LOOKBACK_DAYS = 400  # OHLCV 조회 구간(달력일, 52주 확보용 여유)
+
 
 def _retry(fn, *args, **kwargs):
     """KRX 호출을 지수 백오프로 재시도(일시 차단/지연 대비)."""
@@ -100,6 +107,49 @@ def analyze_ticker(ticker, fromdate, todate):
     }
 
 
+def check_extra_signals(ticker, todate):
+    """수급 통과 종목에 대해 거래량 급증 / 52주 신고가권 여부를 계산."""
+    blank = {"vol_surge": False, "vol_ratio": None, "new_high": False, "near_high": False}
+    frm = (datetime.strptime(todate, "%Y%m%d") - timedelta(days=OHLCV_LOOKBACK_DAYS)).strftime("%Y%m%d")
+    df = _retry(stock.get_market_ohlcv_by_date, frm, todate, ticker)
+    if df is None or df.empty or "거래량" not in df.columns or "종가" not in df.columns:
+        return blank
+    df = df[df["거래량"] > 0]  # 휴장 등 거래량 0 행 제거
+    if df.empty:
+        return blank
+
+    out = dict(blank)
+    vol, close = df["거래량"], df["종가"]
+
+    # 거래량 급증: 최근일 거래량 vs 직전 VOL_AVG_DAYS 거래일 평균
+    if len(vol) >= VOL_AVG_DAYS + 1:
+        base = vol.iloc[-(VOL_AVG_DAYS + 1):-1].mean()
+        if base > 0:
+            out["vol_ratio"] = float(vol.iloc[-1] / base)
+            out["vol_surge"] = out["vol_ratio"] >= VOL_SURGE_MULT
+
+    # 52주 신고가: 최근 종가 vs 최근 HIGH_52W_DAYS 거래일 최고 종가
+    if len(close) >= 2:
+        hi = float(close.iloc[-HIGH_52W_DAYS:].max())
+        last = float(close.iloc[-1])
+        if hi > 0:
+            out["new_high"] = last >= hi
+            out["near_high"] = last >= HIGH_NEAR_RATIO * hi
+    return out
+
+
+def _signal_flags(r):
+    """불릿에 붙일 지표 태그 문자열."""
+    parts = []
+    if r.get("vol_surge"):
+        parts.append(f"거래량 {r['vol_ratio']:.1f}배")
+    if r.get("new_high"):
+        parts.append("52주 신고가")
+    elif r.get("near_high"):
+        parts.append("신고가 근접")
+    return ("  ·  " + ", ".join(parts)) if parts else ""
+
+
 def main():
     now_kst = datetime.now(ZoneInfo("Asia/Seoul"))
     # pykrx 1.2.8+ 는 KRX 회원 로그인이 필수(KRX_ID/KRX_PW). 없으면 데이터가 빈값으로 옴.
@@ -135,15 +185,32 @@ def main():
         if i % 50 == 0:
             log.info("진행 %d/%d (채택 %d)", i, len(tickers), len(results))
 
-    # 연속일수 → 매수금액 합 순으로 정렬
-    results.sort(key=lambda r: (r["streak"], r["fore_sum"] + r["inst_sum"]), reverse=True)
-
-    # 종목명은 채택된 것만 조회(호출 절약)
+    # 채택 종목: 종목명 + 추가 지표(거래량 급증 / 52주 신고가) 계산
     for r in results:
         try:
             r["name"] = _retry(stock.get_market_ticker_name, r["ticker"])
         except Exception:  # noqa: BLE001
             r["name"] = r["ticker"]
+        try:
+            r.update(check_extra_signals(r["ticker"], date))
+        except Exception as exc:  # noqa: BLE001 - 지표 실패해도 수급 결과는 유지
+            log.warning("지표 계산 실패 %s: %s", r["ticker"], exc)
+        r["triple"] = bool(r.get("vol_surge") and r.get("near_high"))
+        time.sleep(SLEEP_BETWEEN)
+
+    # 3중 신호 우선 → 연속일수 → 매수금액 합 순으로 정렬
+    results.sort(
+        key=lambda r: (r["triple"], r["streak"], r["fore_sum"] + r["inst_sum"]),
+        reverse=True,
+    )
+    triple = [r for r in results if r["triple"]]
+
+    def _bullet(r):
+        return notion_client.bullet(
+            f"{r['name']}({r['ticker']}) — 연속 {r['streak']}일, "
+            f"외인 +{r['fore_sum'] / EOK:,.0f}억, 기관 +{r['inst_sum'] / EOK:,.0f}억"
+            f"{_signal_flags(r)}"
+        )
 
     # Notion C 저장
     title = f"\U0001f4c8 수급 스캔 {date} (KST {now_kst:%Y-%m-%d})"
@@ -154,25 +221,37 @@ def main():
         notion_client.paragraph(
             f"대상: 코스피·코스닥 시총 상위 {len(tickers)}종목 / 기준일 {date}"
         ),
+        notion_client.heading(
+            f"\U0001f525 3중 신호 (수급+거래량급증+신고가권) — {len(triple)}종목", 3
+        ),
     ]
+    if triple:
+        blocks.extend(_bullet(r) for r in triple)
+    else:
+        blocks.append(notion_client.paragraph("3중 신호 동시 충족 종목 없음"))
+
+    blocks.append(notion_client.heading("전체 수급 종목 (3중 신호 포함)", 3))
     if results:
-        for r in results:
-            blocks.append(notion_client.bullet(
-                f"{r['name']}({r['ticker']}) — 연속 {r['streak']}일, "
-                f"외인 +{r['fore_sum'] / EOK:,.0f}억, 기관 +{r['inst_sum'] / EOK:,.0f}억"
-            ))
+        blocks.extend(_bullet(r) for r in results)
     else:
         blocks.append(notion_client.paragraph("조건 충족 종목 없음"))
 
     notion_client.create_page_in_database(db_id, title, blocks)
-    log.info("Notion 저장 완료: %d종목", len(results))
+    log.info("Notion 저장 완료: 수급 %d종목 (3중 신호 %d)", len(results), len(triple))
 
     # Telegram 알림
-    if results:
-        head = ", ".join(f"{r['name']}({r['streak']}일)" for r in results[:5])
-        notify.notify_success(STAGE, f"{date} 수급 포착 {len(results)}종목\n상위: {head}")
-    else:
+    if not results:
         notify.notify_success(STAGE, f"{date} 조건 충족 종목 없음")
+    elif triple:
+        head = ", ".join(r["name"] for r in triple[:5])
+        notify.notify_success(
+            STAGE, f"{date} 수급 {len(results)}종목 / \U0001f5253중신호 {len(triple)}종목\n{head}"
+        )
+    else:
+        head = ", ".join(f"{r['name']}({r['streak']}일)" for r in results[:5])
+        notify.notify_success(
+            STAGE, f"{date} 수급 {len(results)}종목 (3중신호 0)\n상위: {head}"
+        )
 
     log.info("수급 스캔 완료 ✅")
 
