@@ -71,7 +71,7 @@ def get_top_marketcap_tickers(date):
 
 
 def analyze_ticker(ticker, fromdate, todate):
-    """최근 CONSECUTIVE_DAYS 거래일 모두 외인>0 AND 기관>0 이면 dict, 아니면 None."""
+    """최근 CONSECUTIVE_DAYS 거래일 매일 기관 순매수(>0)면 채택(기관 중심). 외인 동반은 가점용."""
     df = _retry(stock.get_market_trading_value_by_date, fromdate, todate, ticker)
     if df is None or df.empty or len(df) < CONSECUTIVE_DAYS:
         return None
@@ -85,25 +85,29 @@ def analyze_ticker(ticker, fromdate, todate):
     if inst_col is None or fore_col is None:
         return None
 
-    # (외인 + 기관) 합산 순매수 기준: 한쪽이 조금 팔아도 합쳐서 순매수면 인정
-    combined = df[inst_col] + df[fore_col]
-    if not (combined.tail(CONSECUTIVE_DAYS) > 0).all():
+    # 기관 중심: 최근 CONSECUTIVE_DAYS 거래일 매일 기관이 순매수(>0)여야 채택
+    inst = df[inst_col]
+    if not (inst.tail(CONSECUTIVE_DAYS) > 0).all():
         return None
 
-    # 끝에서부터 합산이 순매수(>0)인 연속 일수(streak) 계산
+    # 끝에서부터 기관이 순매수인 연속 일수(streak) 계산
     streak = 0
-    for i in range(len(combined) - 1, -1, -1):
-        if combined.iloc[i] > 0:
+    for i in range(len(inst) - 1, -1, -1):
+        if inst.iloc[i] > 0:
             streak += 1
         else:
             break
 
     window = df.tail(streak)
+    fore = df[fore_col]
+    # 외국인 동반 매수(가점): 최근 CONSECUTIVE_DAYS일 모두 외인도 순매수
+    foreign_accompany = bool((fore.tail(CONSECUTIVE_DAYS) > 0).all())
     return {
         "ticker": ticker,
         "streak": streak,
-        "fore_sum": float(window[fore_col].sum()),
         "inst_sum": float(window[inst_col].sum()),
+        "fore_sum": float(window[fore_col].sum()),
+        "foreign_accompany": foreign_accompany,
     }
 
 
@@ -200,20 +204,19 @@ def main():
         r["double"] = r["sig_count"] == 1   # 수급 + 둘 중 1개
         time.sleep(SLEEP_BETWEEN)
 
-    # 신호 강도(3중>2중>수급만) → 연속일수 → 매수금액 합 순으로 정렬
+    # 신호 강도(3중>2중) → 외인 동반 → 기관 매수금액 → 연속일수 순으로 정렬
     results.sort(
-        key=lambda r: (r["sig_count"], r["streak"], r["fore_sum"] + r["inst_sum"]),
+        key=lambda r: (r["sig_count"], int(r["foreign_accompany"]), r["inst_sum"], r["streak"]),
         reverse=True,
     )
     triple = [r for r in results if r["triple"]]
     double = [r for r in results if r["double"]]
 
     def _bullet(r):
-        return notion_client.bullet(
-            f"{r['name']}({r['ticker']}) — 연속 {r['streak']}일, "
-            f"외인 +{r['fore_sum'] / EOK:,.0f}억, 기관 +{r['inst_sum'] / EOK:,.0f}억"
-            f"{_signal_flags(r)}"
-        )
+        txt = f"{r['name']}({r['ticker']}) — 기관 {r['streak']}일 연속 +{r['inst_sum'] / EOK:,.0f}억"
+        if r.get("foreign_accompany"):
+            txt += f", 외인 동반 +{r['fore_sum'] / EOK:,.0f}억"
+        return notion_client.bullet(txt + _signal_flags(r))
 
     def _section(blocks, head, items, empty):
         blocks.append(notion_client.heading(head, 3))
@@ -226,7 +229,7 @@ def main():
     title = f"\U0001f4c8 수급 스캔 {date} (KST {now_kst:%Y-%m-%d})"
     blocks = [
         notion_client.heading(
-            f"{CONSECUTIVE_DAYS}거래일+ 연속 외인·기관 합산 순매수 — {len(results)}종목", 2
+            f"{CONSECUTIVE_DAYS}거래일+ 연속 기관 순매수 (외인 동반 가점) — {len(results)}종목", 2
         ),
         notion_client.paragraph(
             f"대상: 코스피·코스닥 시총 상위 {len(tickers)}종목 / 기준일 {date}"
