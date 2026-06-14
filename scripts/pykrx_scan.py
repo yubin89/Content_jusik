@@ -28,10 +28,10 @@ SLEEP_BETWEEN = 0.3    # 종목 간 호출 간격(초) — KRX 부담 완화
 EOK = 100_000_000      # 원 → 억원 변환
 
 # ---- 추가 지표 설정 (수급 통과 종목에만 적용) ----
-VOL_SURGE_MULT = 2.0       # 최근 거래량 ≥ 최근 20거래일 평균의 N배 → 거래량 급증
+VOL_SURGE_MULT = 1.5       # 최근 거래량 ≥ 최근 20거래일 평균의 N배 → 거래량 급증
 VOL_AVG_DAYS = 20          # 거래량 평균 기준 거래일 수
 HIGH_52W_DAYS = 252        # 52주 ≈ 252거래일
-HIGH_NEAR_RATIO = 0.97     # 52주 최고 종가의 N% 이상이면 신고가권(돌파/근접)
+HIGH_NEAR_RATIO = 0.90     # 52주 최고 종가의 N% 이상이면 신고가권(돌파/근접)
 OHLCV_LOOKBACK_DAYS = 400  # OHLCV 조회 구간(달력일, 52주 확보용 여유)
 
 
@@ -195,15 +195,18 @@ def main():
             r.update(check_extra_signals(r["ticker"], date))
         except Exception as exc:  # noqa: BLE001 - 지표 실패해도 수급 결과는 유지
             log.warning("지표 계산 실패 %s: %s", r["ticker"], exc)
-        r["triple"] = bool(r.get("vol_surge") and r.get("near_high"))
+        r["sig_count"] = int(bool(r.get("vol_surge"))) + int(bool(r.get("near_high")))
+        r["triple"] = r["sig_count"] == 2   # 수급+거래량+신고가
+        r["double"] = r["sig_count"] == 1   # 수급 + 둘 중 1개
         time.sleep(SLEEP_BETWEEN)
 
-    # 3중 신호 우선 → 연속일수 → 매수금액 합 순으로 정렬
+    # 신호 강도(3중>2중>수급만) → 연속일수 → 매수금액 합 순으로 정렬
     results.sort(
-        key=lambda r: (r["triple"], r["streak"], r["fore_sum"] + r["inst_sum"]),
+        key=lambda r: (r["sig_count"], r["streak"], r["fore_sum"] + r["inst_sum"]),
         reverse=True,
     )
     triple = [r for r in results if r["triple"]]
+    double = [r for r in results if r["double"]]
 
     def _bullet(r):
         return notion_client.bullet(
@@ -211,6 +214,13 @@ def main():
             f"외인 +{r['fore_sum'] / EOK:,.0f}억, 기관 +{r['inst_sum'] / EOK:,.0f}억"
             f"{_signal_flags(r)}"
         )
+
+    def _section(blocks, head, items, empty):
+        blocks.append(notion_client.heading(head, 3))
+        if items:
+            blocks.extend(_bullet(r) for r in items)
+        else:
+            blocks.append(notion_client.paragraph(empty))
 
     # Notion C 저장
     title = f"\U0001f4c8 수급 스캔 {date} (KST {now_kst:%Y-%m-%d})"
@@ -221,36 +231,30 @@ def main():
         notion_client.paragraph(
             f"대상: 코스피·코스닥 시총 상위 {len(tickers)}종목 / 기준일 {date}"
         ),
-        notion_client.heading(
-            f"\U0001f525 3중 신호 (수급+거래량급증+신고가권) — {len(triple)}종목", 3
-        ),
     ]
-    if triple:
-        blocks.extend(_bullet(r) for r in triple)
-    else:
-        blocks.append(notion_client.paragraph("3중 신호 동시 충족 종목 없음"))
-
-    blocks.append(notion_client.heading("전체 수급 종목 (3중 신호 포함)", 3))
-    if results:
-        blocks.extend(_bullet(r) for r in results)
-    else:
-        blocks.append(notion_client.paragraph("조건 충족 종목 없음"))
+    _section(blocks, f"\U0001f525 3중 신호 (수급+거래량급증+신고가권) — {len(triple)}종목",
+             triple, "3중 신호 종목 없음")
+    _section(blocks, f"⭐ 2중 신호 (수급 + 거래량/신고가 중 1) — {len(double)}종목",
+             double, "2중 신호 종목 없음")
+    _section(blocks, "전체 수급 종목", results, "조건 충족 종목 없음")
 
     notion_client.create_page_in_database(db_id, title, blocks)
-    log.info("Notion 저장 완료: 수급 %d종목 (3중 신호 %d)", len(results), len(triple))
+    log.info("Notion 저장 완료: 수급 %d (3중 %d / 2중 %d)", len(results), len(triple), len(double))
 
     # Telegram 알림
+    highlight = triple + double
     if not results:
         notify.notify_success(STAGE, f"{date} 조건 충족 종목 없음")
-    elif triple:
-        head = ", ".join(r["name"] for r in triple[:5])
+    elif highlight:
+        head = ", ".join(r["name"] for r in highlight[:5])
         notify.notify_success(
-            STAGE, f"{date} 수급 {len(results)}종목 / \U0001f5253중신호 {len(triple)}종목\n{head}"
+            STAGE,
+            f"{date} 수급 {len(results)} / \U0001f5253중 {len(triple)} ⭐2중 {len(double)}\n{head}",
         )
     else:
         head = ", ".join(f"{r['name']}({r['streak']}일)" for r in results[:5])
         notify.notify_success(
-            STAGE, f"{date} 수급 {len(results)}종목 (3중신호 0)\n상위: {head}"
+            STAGE, f"{date} 수급 {len(results)}종목 (3중·2중 0)\n상위: {head}"
         )
 
     log.info("수급 스캔 완료 ✅")
