@@ -24,7 +24,7 @@
 |---|---|---|---|---|
 | 07:00 | Reddit 스캔 | 5개 서브레딧 언급량 급증 티커 | 노션 **A** | Reddit API |
 | 16:00 | DART 공시 | 수주/계약/특허 + 시총대비 계약 10%+ | 노션 **B** | DART 키 |
-| 16:30 | pykrx 수급 | 3거래일 연속 외인·기관 동시 순매수 | 노션 **C** | (없음) |
+| 16:30 | pykrx 수급 | 3거래일 연속 외인·기관 동시 순매수 | 노션 **C** | KRX 무료계정 |
 | 17:00 | Claude 분석 | A+B+C 종합 → 한 장 요약 | 노션 **D** | Claude API |
 
 > GitHub Actions의 예약(cron)은 **UTC 기준**이라 워크플로 파일엔 UTC 시각(KST−9)이 적혀 있음.
@@ -57,7 +57,8 @@
 - [x] **Step 1 — 공유 토대 + 연결 테스트** ✅ (2026-06-14 완료)
   - GitHub Actions → 노션 쓰기 → 텔레그램 알림 전 구간 검증 완료
 - [x] **Step 2 — pykrx 수급 스캔 (코드)** ✅ 코드 완료·푸시 (2026-06-14)
-  - [ ] 사용자 테스트 대기: 노션 `C-수급` 표 생성 + `NOTION_DB_C` 시크릿 + 수동 실행
+  - [ ] 사용자 테스트 대기: 노션 `C-수급` 표 + `NOTION_DB_C` + **KRX 무료계정 `KRX_ID`/`KRX_PW`** 시크릿 + 수동 실행
+  - ⚠️ pykrx 1.2.8부터 KRX 회원 로그인 필수 (아래 5번 변경이력 참고)
 - [ ] **Step 3 — DART 공시 수집 (노션 B)** — DART 무료 키 필요
 - [ ] **Step 4 — Reddit 스캔 (노션 A)** — Reddit 키 필요, 스냅샷 누적 방식
 - [ ] **Step 5 — Claude 종합 분석 (노션 D)** — Claude 키는 여기서만 사용
@@ -74,7 +75,11 @@
 - **텔레그램 연동**: 봇 생성·시크릿 등록 후 알림 정상 동작 확인.
 - **Step 1 검증 완료**: 노션 테스트 행 생성 + 텔레그램 ✅ 알림 확인.
 - **Step 2 구현**: `scripts/pykrx_scan.py` + `pykrx_scan.yml` + requirements에 `pykrx` 추가.
-  가짜 데이터로 판정·정렬·금액변환 단위검증 통과. (실제 KRX 검증은 사용자 실행 예정)
+  가짜 데이터로 판정·정렬·금액변환 단위검증 통과.
+- **Step 2 이슈/수정 (KRX 로그인 필수화)**: 첫 실행 시 `get_nearest_business_day_in_a_week` 에서
+  `IndexError`(빈 응답). 원인은 **pykrx 1.2.8부터 KRX 회원 로그인(KRX_ID/KRX_PW)이 필수**가 됨
+  (인증 없으면 데이터가 빈값). **해결**: `KRX_ID`/`KRX_PW` 시크릿 추가 + 워크플로 env 주입 +
+  `config.require`에 추가 + `requirements`에 `pykrx>=1.2.8` 고정. → "키 불필요" 가정은 무효화됨.
 
 ---
 
@@ -89,6 +94,7 @@
 | `TELEGRAM_BOT_TOKEN` | 텔레그램 봇 | ✅ 등록됨 |
 | `TELEGRAM_CHAT_ID` | 텔레그램 수신 대상 | ✅ 등록됨 |
 | `NOTION_DB_C` | Step 2 수급 표 "C-수급" | ⏳ 사용자 등록 예정 |
+| `KRX_ID` / `KRX_PW` | Step 2 KRX 회원 로그인(데이터 조회 필수) | ⏳ 사용자 등록 예정 |
 | `NOTION_DB_B` | Step 3 DART 표 | ⏳ 예정 |
 | `DART_API_KEY` | Step 3 DART 공시 | ⏳ 예정 |
 | `NOTION_DB_A` | Step 4 Reddit 표 | ⏳ 예정 |

@@ -101,7 +101,8 @@ def analyze_ticker(ticker, fromdate, todate):
 
 def main():
     now_kst = datetime.now(ZoneInfo("Asia/Seoul"))
-    config.require(["NOTION_TOKEN", "NOTION_DB_C"])
+    # pykrx 1.2.8+ 는 KRX 회원 로그인이 필수(KRX_ID/KRX_PW). 없으면 데이터가 빈값으로 옴.
+    config.require(["NOTION_TOKEN", "NOTION_DB_C", "KRX_ID", "KRX_PW"])
     db_id = config.get("NOTION_DB_C")
 
     date = _retry(stock.get_nearest_business_day_in_a_week)

@@ -4,4 +4,4 @@
 #   Step 5(Claude): anthropic
 requests>=2.31
 notion-client>=2.2
-pykrx>=1.0          # Step 2: 한국거래소 수급 데이터
+pykrx>=1.2.8        # Step 2: 한국거래소 수급 데이터 (KRX 회원 로그인 KRX_ID/KRX_PW 필요)
