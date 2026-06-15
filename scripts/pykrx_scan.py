@@ -21,7 +21,7 @@ STAGE = "수급 스캔"
 log = get_logger("pykrx_scan")
 
 # ---- 조정 가능한 설정 ----
-TOP_N = 200            # 시총 상위 몇 종목을 대상으로 볼지
+TOP_N = 300            # 시총 상위 몇 종목을 대상으로 볼지
 CONSECUTIVE_DAYS = 3   # 최근 며칠 연속 순매수여야 채택
 LOOKBACK_DAYS = 15     # 달력일 기준 조회 구간(최소 3거래일 확보용 여유)
 SLEEP_BETWEEN = 0.3    # 종목 간 호출 간격(초) — KRX 부담 완화
@@ -39,6 +39,15 @@ OHLCV_LOOKBACK_DAYS = 400  # OHLCV 조회 구간(달력일, 52주 확보용 여�
 # 당일 종가가 MA_TREND(중기)선 위 = 상승추세로 보고 채택. 아래면 '분산 의심'으로 제외.
 MA_SHORT = 5    # 단기 추세선(거래일) — 위에 있으면 '단기 상승' 강세 태그
 MA_TREND = 20   # 중기 추세선(거래일) — 당일 종가가 이 위여야 채택(하락추세 제외)
+
+# ---- 선취매(매집 초기) 탐지 설정 ----
+# 3중 신호(거래량 급증+신고가권)는 '이미 터진' 확인 신호 → 추격 매수가 늦을 수 있음.
+# 반대로 '기관은 매집 중인데 아직 가격엔 안 터진' 종목(거래량 잠잠 + 고점까지 여유 +
+# 당일 미급등)을 '선취매 후보'로 따로 surfaced 해서 폭등 전에 미리 포착한다.
+EARLY_HIGH_MIN = 0.55       # 52주 고점 대비 현재가 ≥ 55% (바닥권 소외주 제외)
+EARLY_HIGH_MAX = 0.88       # 52주 고점 대비 현재가 ≤ 88% (돌파 여지 충분 = 아직 신고가권 아님)
+EARLY_MAX_DAY_CHANGE = 0.06 # 당일 등락률 < +6% (오늘 아직 급등 안 함 = 추격 아님)
+SURGED_DAY_CHANGE = 0.12    # 당일 등락률 ≥ +12% → '이미 급등(추격주의)' 경고 태그
 
 
 def _retry(fn, *args, **kwargs):
@@ -124,6 +133,8 @@ def check_extra_signals(ticker, todate):
         # 가격데이터 조회 실패 시: 추세필터는 통과(True)시켜 수급 통과 종목을 잃지 않고,
         # 단기상승 강세 태그는 데이터 없으면 미부여(False).
         "above_ma_short": False, "above_ma_trend": True,
+        # 당일 등락률 / 52주 고점 대비 현재가 비율 (선취매 판정·추격주의 표시용)
+        "day_change": None, "high_ratio": None,
     }
     frm = (datetime.strptime(todate, "%Y%m%d") - timedelta(days=OHLCV_LOOKBACK_DAYS)).strftime("%Y%m%d")
     df = _retry(stock.get_market_ohlcv_by_date, frm, todate, ticker)
@@ -147,9 +158,13 @@ def check_extra_signals(ticker, todate):
     if len(close) >= 2:
         hi = float(close.iloc[-HIGH_52W_DAYS:].max())
         last = float(close.iloc[-1])
+        prev = float(close.iloc[-2])
         if hi > 0:
+            out["high_ratio"] = last / hi          # 고점 대비 현재가 위치(돌파 여유 판단)
             out["new_high"] = last >= hi
             out["near_high"] = last >= HIGH_NEAR_RATIO * hi
+        if prev > 0:
+            out["day_change"] = last / prev - 1     # 당일 등락률(이미 급등했는지 판단)
 
     # 가격 추세: 당일 종가가 단기(5일)/중기(20일) 이동평균선 위인지
     if len(close) >= MA_TREND:
@@ -159,9 +174,29 @@ def check_extra_signals(ticker, todate):
     return out
 
 
+def is_early(r):
+    """선취매(매집 초기) 후보 판정.
+
+    기관 연속 순매수(기본 조건) + 20일선 위(추세 전환 초입, 이미 필터됨)인 상태에서
+    아직 '안 터진' 종목 = ① 거래량 미급증 ② 신고가권 아님(고점까지 여유 있음)
+    ③ 당일 등락률 과하지 않음(오늘 추격 매수 아님).
+    """
+    hr = r.get("high_ratio")
+    dc = r.get("day_change")
+    if r.get("vol_surge") or r.get("near_high"):
+        return False
+    if hr is None or not (EARLY_HIGH_MIN <= hr <= EARLY_HIGH_MAX):
+        return False
+    if dc is not None and dc >= EARLY_MAX_DAY_CHANGE:
+        return False
+    return True
+
+
 def _signal_flags(r):
     """불릿에 붙일 지표 태그 문자열."""
     parts = []
+    if r.get("early"):
+        parts.append("🌱매집초기")
     if r.get("vol_surge"):
         parts.append(f"거래량 {r['vol_ratio']:.1f}배")
     if r.get("new_high"):
@@ -170,6 +205,9 @@ def _signal_flags(r):
         parts.append("신고가 근접")
     if r.get("above_ma_short"):
         parts.append("단기상승")
+    dc = r.get("day_change")
+    if dc is not None and dc >= SURGED_DAY_CHANGE:
+        parts.append(f"⚠️당일 +{dc * 100:.0f}% 급등(추격주의)")
     return ("  ·  " + ", ".join(parts)) if parts else ""
 
 
@@ -221,6 +259,7 @@ def main():
         r["sig_count"] = int(bool(r.get("vol_surge"))) + int(bool(r.get("near_high")))
         r["triple"] = r["sig_count"] == 2   # 수급+거래량+신고가
         r["double"] = r["sig_count"] == 1   # 수급 + 둘 중 1개
+        r["early"] = is_early(r)            # 선취매(매집 초기) 후보
         time.sleep(SLEEP_BETWEEN)
 
     # 가격 추세 하드 필터: 당일 종가가 20일선 위인 종목만 채택(하락추세=분산 의심 제외)
@@ -235,11 +274,22 @@ def main():
     )
     triple = [r for r in results if r["triple"]]
     double = [r for r in results if r["double"]]
+    # 선취매 후보: 기관 매수금액 → 연속일수 순 (이미 강세인 3중/2중과 겹치지 않음)
+    early = sorted(
+        (r for r in results if r.get("early")),
+        key=lambda r: (r["inst_sum"], r["streak"]), reverse=True,
+    )
 
     def _bullet(r):
         txt = f"{r['name']}({r['ticker']}) — 기관 {r['streak']}일 연속 +{r['inst_sum'] / EOK:,.0f}억"
         if r.get("foreign_accompany"):
             txt += f", 외인 동반 +{r['fore_sum'] / EOK:,.0f}억"
+        dc = r.get("day_change")
+        if dc is not None:
+            txt += f", 당일 {dc * 100:+.1f}%"
+        hr = r.get("high_ratio")
+        if hr is not None:
+            txt += f", 고점대비 {hr * 100:.0f}%"
         return notion_client.bullet(txt + _signal_flags(r))
 
     def _section(blocks, head, items, empty):
@@ -259,29 +309,35 @@ def main():
             f"대상: 코스피·코스닥 시총 상위 {len(tickers)}종목 / 기준일 {date}"
         ),
     ]
-    _section(blocks, f"\U0001f525 3중 신호 (수급+거래량급증+신고가권) — {len(triple)}종목",
+    _section(blocks, f"\U0001f331 매집 초기 (선취매 후보: 기관 매집 + 아직 미급등) — {len(early)}종목",
+             early, "선취매 후보 없음")
+    _section(blocks, f"\U0001f525 3중 신호 (수급+거래량급증+신고가권, 이미 강세·추격 주의) — {len(triple)}종목",
              triple, "3중 신호 종목 없음")
     _section(blocks, f"⭐ 2중 신호 (수급 + 거래량/신고가 중 1) — {len(double)}종목",
              double, "2중 신호 종목 없음")
     _section(blocks, "전체 수급 종목", results, "조건 충족 종목 없음")
 
     notion_client.create_page_in_database(db_id, title, blocks)
-    log.info("Notion 저장 완료: 수급 %d (3중 %d / 2중 %d)", len(results), len(triple), len(double))
+    log.info(
+        "Notion 저장 완료: 수급 %d (선취 %d / 3중 %d / 2중 %d)",
+        len(results), len(early), len(triple), len(double),
+    )
 
-    # Telegram 알림
-    highlight = triple + double
+    # Telegram 알림 — 폭등 전에 미리 보는 게 목적이므로 '선취매'를 헤드라인 앞에 둔다.
+    highlight = early + triple + double
     if not results:
         notify.notify_success(STAGE, f"{date} 조건 충족 종목 없음")
     elif highlight:
         head = ", ".join(r["name"] for r in highlight[:5])
         notify.notify_success(
             STAGE,
-            f"{date} 수급 {len(results)} / \U0001f5253중 {len(triple)} ⭐2중 {len(double)}\n{head}",
+            f"{date} 수급 {len(results)} / \U0001f331선취 {len(early)} "
+            f"\U0001f5253중 {len(triple)} ⭐2중 {len(double)}\n{head}",
         )
     else:
         head = ", ".join(f"{r['name']}({r['streak']}일)" for r in results[:5])
         notify.notify_success(
-            STAGE, f"{date} 수급 {len(results)}종목 (3중·2중 0)\n상위: {head}"
+            STAGE, f"{date} 수급 {len(results)}종목 (선취·3중·2중 0)\n상위: {head}"
         )
 
     log.info("수급 스캔 완료 ✅")
