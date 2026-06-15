@@ -34,6 +34,12 @@ HIGH_52W_DAYS = 252        # 52주 ≈ 252거래일
 HIGH_NEAR_RATIO = 0.90     # 52주 최고 종가의 N% 이상이면 신고가권(돌파/근접)
 OHLCV_LOOKBACK_DAYS = 400  # OHLCV 조회 구간(달력일, 52주 확보용 여유)
 
+# ---- 가격 추세 필터 설정 ----
+# 수급(기관 매집)이 실제 가격으로 발현되기 시작한 종목만 채택하기 위함.
+# 당일 종가가 MA_TREND(중기)선 위 = 상승추세로 보고 채택. 아래면 '분산 의심'으로 제외.
+MA_SHORT = 5    # 단기 추세선(거래일) — 위에 있으면 '단기 상승' 강세 태그
+MA_TREND = 20   # 중기 추세선(거래일) — 당일 종가가 이 위여야 채택(하락추세 제외)
+
 
 def _retry(fn, *args, **kwargs):
     """KRX 호출을 지수 백오프로 재시도(일시 차단/지연 대비)."""
@@ -113,7 +119,12 @@ def analyze_ticker(ticker, fromdate, todate):
 
 def check_extra_signals(ticker, todate):
     """수급 통과 종목에 대해 거래량 급증 / 52주 신고가권 여부를 계산."""
-    blank = {"vol_surge": False, "vol_ratio": None, "new_high": False, "near_high": False}
+    blank = {
+        "vol_surge": False, "vol_ratio": None, "new_high": False, "near_high": False,
+        # 가격데이터 조회 실패 시: 추세필터는 통과(True)시켜 수급 통과 종목을 잃지 않고,
+        # 단기상승 강세 태그는 데이터 없으면 미부여(False).
+        "above_ma_short": False, "above_ma_trend": True,
+    }
     frm = (datetime.strptime(todate, "%Y%m%d") - timedelta(days=OHLCV_LOOKBACK_DAYS)).strftime("%Y%m%d")
     df = _retry(stock.get_market_ohlcv_by_date, frm, todate, ticker)
     if df is None or df.empty or "거래량" not in df.columns or "종가" not in df.columns:
@@ -139,6 +150,12 @@ def check_extra_signals(ticker, todate):
         if hi > 0:
             out["new_high"] = last >= hi
             out["near_high"] = last >= HIGH_NEAR_RATIO * hi
+
+    # 가격 추세: 당일 종가가 단기(5일)/중기(20일) 이동평균선 위인지
+    if len(close) >= MA_TREND:
+        out["above_ma_trend"] = float(close.iloc[-1]) >= float(close.iloc[-MA_TREND:].mean())
+    if len(close) >= MA_SHORT:
+        out["above_ma_short"] = float(close.iloc[-1]) >= float(close.iloc[-MA_SHORT:].mean())
     return out
 
 
@@ -151,6 +168,8 @@ def _signal_flags(r):
         parts.append("52주 신고가")
     elif r.get("near_high"):
         parts.append("신고가 근접")
+    if r.get("above_ma_short"):
+        parts.append("단기상승")
     return ("  ·  " + ", ".join(parts)) if parts else ""
 
 
@@ -203,6 +222,11 @@ def main():
         r["triple"] = r["sig_count"] == 2   # 수급+거래량+신고가
         r["double"] = r["sig_count"] == 1   # 수급 + 둘 중 1개
         time.sleep(SLEEP_BETWEEN)
+
+    # 가격 추세 하드 필터: 당일 종가가 20일선 위인 종목만 채택(하락추세=분산 의심 제외)
+    before = len(results)
+    results = [r for r in results if r.get("above_ma_trend", True)]
+    log.info("가격 추세 필터: %d → %d (하락추세 %d 제외)", before, len(results), before - len(results))
 
     # 신호 강도(3중>2중) → 외인 동반 → 기관 매수금액 → 연속일수 순으로 정렬
     results.sort(
