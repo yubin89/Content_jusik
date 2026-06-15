@@ -413,22 +413,38 @@ def main():
         len(results), len(early), len(triple), len(double),
     )
 
-    # Telegram 알림 — 폭등 전에 미리 보는 게 목적이므로 '선취매'를 헤드라인 앞에 둔다.
-    highlight = early + triple + double
+    # Telegram 알림 — 무엇을 뜻하는지 라벨을 붙이고, '4박자 모두 충족' 핵심 선취매 TOP3를 앞에 둔다.
+    # 핵심(프리미엄) 선취매: 기관 매집 + 매물대 가벼움 + 변동성 수축 + RS 양수 모두 충족.
+    # early 가 이미 RS 내림차순 정렬 → [:3] 이 곧 가장 강한 3개.
+    premium = [r for r in early if (
+        r.get("overhead_ratio") is not None and r["overhead_ratio"] <= OVERHEAD_LIGHT
+        and r.get("tight")
+        and r.get("rs") is not None and r["rs"] > 0
+    )][:3]
+
+    def _tg_line(i, r):
+        s = f"{i}. {r['name']}({r['ticker']}) — 기관 {r['streak']}일 +{r['inst_sum'] / EOK:,.0f}억"
+        if r.get("rs") is not None:
+            s += f" · 시장대비 {r['rs'] * 100:+.0f}%p"
+        return s
+
     if not results:
-        notify.notify_success(STAGE, f"{date} 조건 충족 종목 없음")
-    elif highlight:
-        head = ", ".join(r["name"] for r in highlight[:5])
-        notify.notify_success(
-            STAGE,
-            f"{date} 수급 {len(results)} / \U0001f331선취 {len(early)} "
-            f"\U0001f5253중 {len(triple)} ⭐2중 {len(double)}\n{head}",
-        )
+        notify.notify_success(STAGE, f"{date} 조건 충족 종목 없음 (휴장/지연 가능)")
     else:
-        head = ", ".join(f"{r['name']}({r['streak']}일)" for r in results[:5])
-        notify.notify_success(
-            STAGE, f"{date} 수급 {len(results)}종목 (선취·3중·2중 0)\n상위: {head}"
-        )
+        lines = [f"{date} 종가 기준 · 대상 {len(tickers)}종목", ""]
+        if premium:
+            lines.append("\U0001f3af 핵심 선취매 TOP3 (기관매집+매물대가벼움+변동성수축+시장강세 모두 충족)")
+            lines += [_tg_line(i, r) for i, r in enumerate(premium, 1)]
+        else:
+            lines.append("\U0001f3af 4박자 충족 핵심 선취매 없음 — 아래 후보는 Notion 참고")
+        lines += [
+            "",
+            "\U0001f4ca 요약",
+            f"\U0001f331 선취매 후보 {len(early)}종목 (폭등 전 조용한 매집 — 관심종목용)",
+            f"\U0001f525 이미 강세: 3중 {len(triple)} · ⭐ 2중 {len(double)} (이미 오름 — 추격 주의)",
+            f"전체 수급 통과 {len(results)}종목 · 자세한 목록은 Notion C",
+        ]
+        notify.notify_success(STAGE, "\n".join(lines))
 
     log.info("수급 스캔 완료 ✅")
 
