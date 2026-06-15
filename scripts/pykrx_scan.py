@@ -256,6 +256,34 @@ def is_early(r):
     return True
 
 
+def _has_light_overhead(r):
+    return r.get("overhead_ratio") is not None and r["overhead_ratio"] <= OVERHEAD_LIGHT
+
+
+def _has_positive_rs(r):
+    return r.get("rs") is not None and r["rs"] > 0
+
+
+def premium_score(r):
+    """선취매 강도 = 4박자(기관매집·매물대가벼움·변동성수축·RS양수) 충족 개수(1~4).
+
+    기관 매집은 선취매 후보의 기본 전제이므로 항상 1점. 나머지 3개는 충족 시 가점.
+    """
+    return 1 + _has_light_overhead(r) + bool(r.get("tight")) + _has_positive_rs(r)
+
+
+def _premium_badges(r):
+    """충족한 부가 신호(기관매집 제외 3박자) 라벨 리스트."""
+    badges = []
+    if _has_light_overhead(r):
+        badges.append("매물대가벼움")
+    if r.get("tight"):
+        badges.append("수축")
+    if _has_positive_rs(r):
+        badges.append("RS강")
+    return badges
+
+
 def _signal_flags(r):
     """불릿에 붙일 지표 태그 문자열."""
     parts = []
@@ -356,11 +384,12 @@ def main():
     )
     triple = [r for r in results if r["triple"]]
     double = [r for r in results if r["double"]]
-    # 선취매 후보: 상대강도(RS) → 기관 매수금액 → 연속일수 순.
-    # 시장보다 강한(자금이 실제로 몰리는) 선취매가 위로 오게 RS를 1순위로.
+    # 선취매 후보: 4박자 충족 점수 → 상대강도(RS) → 기관 매수금액 → 연속일수 순.
+    # 가장 완성도 높은(별점 높은) 선취매가 위로 오게 점수를 1순위로(텔레그램 TOP3와 일치).
     early = sorted(
         (r for r in results if r.get("early")),
-        key=lambda r: (r.get("rs") if r.get("rs") is not None else -9, r["inst_sum"], r["streak"]),
+        key=lambda r: (premium_score(r), r.get("rs") if r.get("rs") is not None else -9,
+                       r["inst_sum"], r["streak"]),
         reverse=True,
     )
 
@@ -413,30 +442,28 @@ def main():
         len(results), len(early), len(triple), len(double),
     )
 
-    # Telegram 알림 — 무엇을 뜻하는지 라벨을 붙이고, '4박자 모두 충족' 핵심 선취매 TOP3를 앞에 둔다.
-    # 핵심(프리미엄) 선취매: 기관 매집 + 매물대 가벼움 + 변동성 수축 + RS 양수 모두 충족.
-    # early 가 이미 RS 내림차순 정렬 → [:3] 이 곧 가장 강한 3개.
-    premium = [r for r in early if (
-        r.get("overhead_ratio") is not None and r["overhead_ratio"] <= OVERHEAD_LIGHT
-        and r.get("tight")
-        and r.get("rs") is not None and r["rs"] > 0
-    )][:3]
-
+    # Telegram 알림 — 선취매 후보를 4박자 충족 '강도순'으로 별점과 함께 항상 TOP3 표시.
     def _tg_line(i, r):
-        s = f"{i}. {r['name']}({r['ticker']}) — 기관 {r['streak']}일 +{r['inst_sum'] / EOK:,.0f}억"
+        sc = premium_score(r)
+        s = (f"{i}. {'★' * sc}{'☆' * (4 - sc)} {r['name']}({r['ticker']}) "
+             f"— 기관 {r['streak']}일 +{r['inst_sum'] / EOK:,.0f}억")
         if r.get("rs") is not None:
             s += f" · 시장대비 {r['rs'] * 100:+.0f}%p"
+        badges = _premium_badges(r)
+        if badges:
+            s += f"  [{' · '.join(badges)}]"
         return s
 
     if not results:
         notify.notify_success(STAGE, f"{date} 조건 충족 종목 없음 (휴장/지연 가능)")
     else:
+        top3 = early[:3]
         lines = [f"{date} 종가 기준 · 대상 {len(tickers)}종목", ""]
-        if premium:
-            lines.append("\U0001f3af 핵심 선취매 TOP3 (기관매집+매물대가벼움+변동성수축+시장강세 모두 충족)")
-            lines += [_tg_line(i, r) for i, r in enumerate(premium, 1)]
+        if top3:
+            lines.append("\U0001f3af 핵심 선취매 TOP3 (★=4박자[기관매집·매물대·수축·RS] 충족 수)")
+            lines += [_tg_line(i, r) for i, r in enumerate(top3, 1)]
         else:
-            lines.append("\U0001f3af 4박자 충족 핵심 선취매 없음 — 아래 후보는 Notion 참고")
+            lines.append("\U0001f3af 선취매 후보 없음")
         lines += [
             "",
             "\U0001f4ca 요약",
