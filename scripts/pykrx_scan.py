@@ -49,6 +49,13 @@ EARLY_HIGH_MAX = 0.88       # 52주 고점 대비 현재가 ≤ 88% (돌파 여�
 EARLY_MAX_DAY_CHANGE = 0.06 # 당일 등락률 < +6% (오늘 아직 급등 안 함 = 추격 아님)
 SURGED_DAY_CHANGE = 0.12    # 당일 등락률 ≥ +12% → '이미 급등(추격주의)' 경고 태그
 
+# ---- 매물대(오버헤드 공급) 설정 ----
+# 고점대비 위치가 같아도, '현재가 위 가격대'에서 거래량이 많았으면 물린 물량(매물대)이
+# 두꺼워 수급이 좋아도 잘 안 오른다. 최근 1년 거래량을 가격대별로 나눠, 현재가보다 높은
+# 가격에서 거래된 비중(overhead_ratio)으로 매물대 부담을 측정한다. 작을수록 '소화됨'(긍정).
+OVERHEAD_LIGHT = 0.15  # 현재가 위 거래량 비중 ≤ 15% → 매물대 가벼움(소화됨, 긍정 신호)
+OVERHEAD_HEAVY = 0.40  # 현재가 위 거래량 비중 ≥ 40% → 위에 물린 물량 많음 → 선취매에서 제외
+
 
 def _retry(fn, *args, **kwargs):
     """KRX 호출을 지수 백오프로 재시도(일시 차단/지연 대비)."""
@@ -135,6 +142,8 @@ def check_extra_signals(ticker, todate):
         "above_ma_short": False, "above_ma_trend": True,
         # 당일 등락률 / 52주 고점 대비 현재가 비율 (선취매 판정·추격주의 표시용)
         "day_change": None, "high_ratio": None,
+        # 현재가보다 높은 가격대에서 거래된 거래량 비중(매물대 부담; 작을수록 소화됨)
+        "overhead_ratio": None,
     }
     frm = (datetime.strptime(todate, "%Y%m%d") - timedelta(days=OHLCV_LOOKBACK_DAYS)).strftime("%Y%m%d")
     df = _retry(stock.get_market_ohlcv_by_date, frm, todate, ticker)
@@ -171,6 +180,16 @@ def check_extra_signals(ticker, todate):
         out["above_ma_trend"] = float(close.iloc[-1]) >= float(close.iloc[-MA_TREND:].mean())
     if len(close) >= MA_SHORT:
         out["above_ma_short"] = float(close.iloc[-1]) >= float(close.iloc[-MA_SHORT:].mean())
+
+    # 매물대(오버헤드 공급): 최근 1년간 '현재가보다 높은 종가일'의 거래량 비중.
+    # 일별 대표가격을 종가로 근사. 비중이 작을수록 위에 물린 물량이 적어 상승이 수월하다.
+    if len(close) >= 2:
+        last_p = float(close.iloc[-1])
+        win = df.iloc[-HIGH_52W_DAYS:]
+        tot_v = float(win["거래량"].sum())
+        if tot_v > 0:
+            overhead_v = float(win.loc[win["종가"] > last_p, "거래량"].sum())
+            out["overhead_ratio"] = overhead_v / tot_v
     return out
 
 
@@ -183,11 +202,14 @@ def is_early(r):
     """
     hr = r.get("high_ratio")
     dc = r.get("day_change")
+    ov = r.get("overhead_ratio")
     if r.get("vol_surge") or r.get("near_high"):
         return False
     if hr is None or not (EARLY_HIGH_MIN <= hr <= EARLY_HIGH_MAX):
         return False
     if dc is not None and dc >= EARLY_MAX_DAY_CHANGE:
+        return False
+    if ov is not None and ov >= OVERHEAD_HEAVY:   # 위에 물린 물량 많으면 제외
         return False
     return True
 
@@ -205,6 +227,12 @@ def _signal_flags(r):
         parts.append("신고가 근접")
     if r.get("above_ma_short"):
         parts.append("단기상승")
+    ov = r.get("overhead_ratio")
+    if ov is not None:
+        if ov <= OVERHEAD_LIGHT:
+            parts.append("매물대 가벼움")
+        elif ov >= OVERHEAD_HEAVY:
+            parts.append("⚠️매물대 부담")
     dc = r.get("day_change")
     if dc is not None and dc >= SURGED_DAY_CHANGE:
         parts.append(f"⚠️당일 +{dc * 100:.0f}% 급등(추격주의)")
@@ -290,6 +318,9 @@ def main():
         hr = r.get("high_ratio")
         if hr is not None:
             txt += f", 고점대비 {hr * 100:.0f}%"
+        ov = r.get("overhead_ratio")
+        if ov is not None:
+            txt += f", 매물대 {ov * 100:.0f}%"
         return notion_client.bullet(txt + _signal_flags(r))
 
     def _section(blocks, head, items, empty):
