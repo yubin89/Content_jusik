@@ -56,6 +56,16 @@ SURGED_DAY_CHANGE = 0.12    # 당일 등락률 ≥ +12% → '이미 급등(추�
 OVERHEAD_LIGHT = 0.15  # 현재가 위 거래량 비중 ≤ 15% → 매물대 가벼움(소화됨, 긍정 신호)
 OVERHEAD_HEAVY = 0.40  # 현재가 위 거래량 비중 ≥ 40% → 위에 물린 물량 많음 → 선취매에서 제외
 
+# ---- 상대강도(RS) / 변동성 수축 설정 ----
+# RS: 종목의 최근 N거래일 수익률을 '같은 시장 지수' 수익률과 비교 → 시장보다 강하면 주도주.
+#     기관·외국인 자금이 실제로 몰리는 종목을 가려내는 가장 검증된 확인 신호.
+RS_DAYS = 60                                     # 상대강도 비교 구간(거래일, ≈3개월)
+RS_INDEX = {"KOSPI": "1001", "KOSDAQ": "2001"}   # pykrx 지수 코드(코스피/코스닥)
+RS_STRONG = 0.10                                 # 지수보다 +10%p↑ 앞서면 '강한 주도주' 태그
+# 변동성 수축: 최근 박스권 폭이 좁으면 매물 소화 끝 → 폭발 직전(베이스 다지기) 가능.
+TIGHT_DAYS = 10        # 최근 며칠 박스권으로 판단
+TIGHT_RANGE = 0.10     # (고점-저점)/현재가 ≤ 10% → 변동성 수축
+
 
 def _retry(fn, *args, **kwargs):
     """KRX 호출을 지수 백오프로 재시도(일시 차단/지연 대비)."""
@@ -73,23 +83,40 @@ def _retry(fn, *args, **kwargs):
 
 
 def get_top_marketcap_tickers(date):
-    """코스피+코스닥 시총 상위 TOP_N 종목 티커 리스트."""
+    """코스피+코스닥 시총 상위 TOP_N 종목의 (티커 리스트, {티커: 시장}) 반환."""
     frames = []
     for market in ("KOSPI", "KOSDAQ"):
         df = _retry(stock.get_market_cap_by_ticker, date, market=market)
         if df is not None and not df.empty:
+            df = df.copy()
+            df["_market"] = market  # RS 비교 시 어느 지수와 견줄지 식별용
             frames.append(df)
     if not frames:
-        return []
+        return [], {}
     allcap = pd.concat(frames)
     cap_col = "시가총액" if "시가총액" in allcap.columns else next(
         (c for c in allcap.columns if "시가총액" in c), None
     )
     if cap_col is None:
-        return []
+        return [], {}
     allcap = allcap[allcap[cap_col] > 0]
     top = allcap.sort_values(cap_col, ascending=False).head(TOP_N)
-    return list(top.index)
+    return list(top.index), dict(zip(top.index, top["_market"]))
+
+
+def get_index_returns(todate):
+    """코스피·코스닥 지수의 최근 RS_DAYS 거래일 수익률 → {시장: 수익률}."""
+    frm = (datetime.strptime(todate, "%Y%m%d") - timedelta(days=OHLCV_LOOKBACK_DAYS)).strftime("%Y%m%d")
+    out = {}
+    for market, code in RS_INDEX.items():
+        try:
+            idf = _retry(stock.get_index_ohlcv_by_date, frm, todate, code)
+            c = idf["종가"]
+            if len(c) >= RS_DAYS and float(c.iloc[-RS_DAYS]) > 0:
+                out[market] = float(c.iloc[-1]) / float(c.iloc[-RS_DAYS]) - 1
+        except Exception as exc:  # noqa: BLE001 - 지수 실패해도 RS만 생략하고 계속
+            log.warning("지수 %s 수익률 계산 실패: %s", market, exc)
+    return out
 
 
 def analyze_ticker(ticker, fromdate, todate):
@@ -144,6 +171,8 @@ def check_extra_signals(ticker, todate):
         "day_change": None, "high_ratio": None,
         # 현재가보다 높은 가격대에서 거래된 거래량 비중(매물대 부담; 작을수록 소화됨)
         "overhead_ratio": None,
+        # 상대강도용 N거래일 수익률(지수와의 비교는 main에서) / 변동성 수축 여부
+        "ret_nd": None, "tight": False,
     }
     frm = (datetime.strptime(todate, "%Y%m%d") - timedelta(days=OHLCV_LOOKBACK_DAYS)).strftime("%Y%m%d")
     df = _retry(stock.get_market_ohlcv_by_date, frm, todate, ticker)
@@ -190,6 +219,19 @@ def check_extra_signals(ticker, todate):
         if tot_v > 0:
             overhead_v = float(win.loc[win["종가"] > last_p, "거래량"].sum())
             out["overhead_ratio"] = overhead_v / tot_v
+
+    # 상대강도용 N거래일 수익률 (지수와의 비교는 main에서 RS로 계산)
+    if len(close) >= RS_DAYS:
+        base_p = float(close.iloc[-RS_DAYS])
+        if base_p > 0:
+            out["ret_nd"] = float(close.iloc[-1]) / base_p - 1
+
+    # 변동성 수축: 최근 TIGHT_DAYS 박스권 폭(고점-저점)/현재가
+    if len(df) >= TIGHT_DAYS and "고가" in df.columns and "저가" in df.columns:
+        w = df.iloc[-TIGHT_DAYS:]
+        last_p = float(close.iloc[-1])
+        if last_p > 0:
+            out["tight"] = (float(w["고가"].max()) - float(w["저가"].min())) / last_p <= TIGHT_RANGE
     return out
 
 
@@ -233,6 +275,11 @@ def _signal_flags(r):
             parts.append("매물대 가벼움")
         elif ov >= OVERHEAD_HEAVY:
             parts.append("⚠️매물대 부담")
+    rs = r.get("rs")
+    if rs is not None and rs >= RS_STRONG:
+        parts.append("강한 주도주")
+    if r.get("tight"):
+        parts.append("변동성 수축")
     dc = r.get("day_change")
     if dc is not None and dc >= SURGED_DAY_CHANGE:
         parts.append(f"⚠️당일 +{dc * 100:.0f}% 급등(추격주의)")
@@ -249,7 +296,7 @@ def main():
     fromdate = (datetime.strptime(date, "%Y%m%d") - timedelta(days=LOOKBACK_DAYS)).strftime("%Y%m%d")
     log.info("기준 거래일 %s (조회구간 %s~%s)", date, fromdate, date)
 
-    tickers = get_top_marketcap_tickers(date)
+    tickers, market_map = get_top_marketcap_tickers(date)
     log.info("시총 상위 대상 종목 수: %d", len(tickers))
 
     # 휴장/데이터 미발행 → 실패가 아니라 '데이터 없음'으로 정상 처리
@@ -274,7 +321,10 @@ def main():
         if i % 50 == 0:
             log.info("진행 %d/%d (채택 %d)", i, len(tickers), len(results))
 
-    # 채택 종목: 종목명 + 추가 지표(거래량 급증 / 52주 신고가) 계산
+    # 상대강도(RS) 기준이 될 시장 지수 수익률(코스피/코스닥) 1회 조회
+    index_ret = get_index_returns(date)
+
+    # 채택 종목: 종목명 + 추가 지표(거래량 급증 / 52주 신고가 / 매물대 / RS 등) 계산
     for r in results:
         try:
             r["name"] = _retry(stock.get_market_ticker_name, r["ticker"])
@@ -284,6 +334,10 @@ def main():
             r.update(check_extra_signals(r["ticker"], date))
         except Exception as exc:  # noqa: BLE001 - 지표 실패해도 수급 결과는 유지
             log.warning("지표 계산 실패 %s: %s", r["ticker"], exc)
+        # 상대강도(RS) = 종목 N일 수익률 - 같은 시장 지수 N일 수익률 (양수면 시장보다 강함)
+        ir = index_ret.get(market_map.get(r["ticker"]))
+        sr = r.get("ret_nd")
+        r["rs"] = (sr - ir) if (ir is not None and sr is not None) else None
         r["sig_count"] = int(bool(r.get("vol_surge"))) + int(bool(r.get("near_high")))
         r["triple"] = r["sig_count"] == 2   # 수급+거래량+신고가
         r["double"] = r["sig_count"] == 1   # 수급 + 둘 중 1개
@@ -302,10 +356,12 @@ def main():
     )
     triple = [r for r in results if r["triple"]]
     double = [r for r in results if r["double"]]
-    # 선취매 후보: 기관 매수금액 → 연속일수 순 (이미 강세인 3중/2중과 겹치지 않음)
+    # 선취매 후보: 상대강도(RS) → 기관 매수금액 → 연속일수 순.
+    # 시장보다 강한(자금이 실제로 몰리는) 선취매가 위로 오게 RS를 1순위로.
     early = sorted(
         (r for r in results if r.get("early")),
-        key=lambda r: (r["inst_sum"], r["streak"]), reverse=True,
+        key=lambda r: (r.get("rs") if r.get("rs") is not None else -9, r["inst_sum"], r["streak"]),
+        reverse=True,
     )
 
     def _bullet(r):
@@ -321,6 +377,9 @@ def main():
         ov = r.get("overhead_ratio")
         if ov is not None:
             txt += f", 매물대 {ov * 100:.0f}%"
+        rs = r.get("rs")
+        if rs is not None:
+            txt += f", 시장대비 {rs * 100:+.0f}%p"
         return notion_client.bullet(txt + _signal_flags(r))
 
     def _section(blocks, head, items, empty):
