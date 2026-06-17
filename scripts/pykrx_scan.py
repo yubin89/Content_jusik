@@ -23,9 +23,14 @@ log = get_logger("pykrx_scan")
 # ---- 조정 가능한 설정 ----
 TOP_N = 300            # 시총 상위 몇 종목을 대상으로 볼지
 CONSECUTIVE_DAYS = 3   # 최근 며칠 연속 순매수여야 채택
-LOOKBACK_DAYS = 15     # 달력일 기준 조회 구간(최소 3거래일 확보용 여유)
+LOOKBACK_DAYS = 35     # 달력일 기준 조회 구간(다주간 일관성 확인용 ~20거래일 확보)
+CONSISTENCY_DAYS = 20  # 다주간 수급 일관성: 최근 N거래일 누적 기관 순매수가 양수여야 채택
 SLEEP_BETWEEN = 0.3    # 종목 간 호출 간격(초) — KRX 부담 완화
 EOK = 100_000_000      # 원 → 억원 변환
+
+# ---- 우선주·저유동 제외 설정 ----
+EXCLUDE_PREFERRED = True            # 보통주(티커 끝 '0')만 대상 — 우선주는 얇은 유동성에 신호 왜곡
+MIN_AVG_TURNOVER = 3_000_000_000    # 최근 20거래일 일평균 거래대금 하한(30억원) — 저유동 제외
 
 # ---- 추가 지표 설정 (수급 통과 종목에만 적용) ----
 VOL_SURGE_MULT = 1.5       # 최근 거래량 ≥ 최근 20거래일 평균의 N배 → 거래량 급증
@@ -62,6 +67,7 @@ OVERHEAD_HEAVY = 0.40  # 현재가 위 거래량 비중 ≥ 40% → 위에 물�
 RS_DAYS = 60                                     # 상대강도 비교 구간(거래일, ≈3개월)
 RS_INDEX = {"KOSPI": "1001", "KOSDAQ": "2001"}   # pykrx 지수 코드(코스피/코스닥)
 RS_STRONG = 0.10                                 # 지수보다 +10%p↑ 앞서면 '강한 주도주' 태그
+RS_OVERHEAT = 0.30                               # +30%p 초과면 '이미 급등'(과열)으로 보고 가점 제외
 # 변동성 수축: 최근 박스권 폭이 좁으면 매물 소화 끝 → 폭발 직전(베이스 다지기) 가능.
 TIGHT_DAYS = 10        # 최근 며칠 박스권으로 판단
 TIGHT_RANGE = 0.10     # (고점-저점)/현재가 ≤ 10% → 변동성 수축
@@ -100,6 +106,9 @@ def get_top_marketcap_tickers(date):
     if cap_col is None:
         return [], {}
     allcap = allcap[allcap[cap_col] > 0]
+    if EXCLUDE_PREFERRED:
+        # 보통주는 티커 끝자리가 '0'. 우선주(끝 5/7/9 등)는 얇은 유동성으로 신호가 왜곡됨.
+        allcap = allcap[allcap.index.map(lambda t: t.endswith("0"))]
     top = allcap.sort_values(cap_col, ascending=False).head(TOP_N)
     return list(top.index), dict(zip(top.index, top["_market"]))
 
@@ -139,6 +148,13 @@ def analyze_ticker(ticker, fromdate, todate):
     if not (inst.tail(CONSECUTIVE_DAYS) > 0).all():
         return None
 
+    # 다주간 수급 일관성: 최근 ~20거래일 누적 기관 순매수가 양수여야 채택.
+    # (직전 몇 주간 대량 순매도가 최근 3일 매수를 상쇄하면 = 들쭉날쭉 → 제외)
+    inst_window = inst.tail(min(CONSISTENCY_DAYS, len(inst)))
+    inst_multiweek = float(inst_window.sum())
+    if inst_multiweek <= 0:
+        return None
+
     # 끝에서부터 기관이 순매수인 연속 일수(streak) 계산
     streak = 0
     for i in range(len(inst) - 1, -1, -1):
@@ -157,6 +173,7 @@ def analyze_ticker(ticker, fromdate, todate):
         "inst_sum": float(window[inst_col].sum()),
         "fore_sum": float(window[fore_col].sum()),
         "foreign_accompany": foreign_accompany,
+        "inst_multiweek": inst_multiweek,
     }
 
 
@@ -173,6 +190,8 @@ def check_extra_signals(ticker, todate):
         "overhead_ratio": None,
         # 상대강도용 N거래일 수익률(지수와의 비교는 main에서) / 변동성 수축 여부
         "ret_nd": None, "tight": False,
+        # 최근 20거래일 일평균 거래대금(원) — 저유동 종목 필터용
+        "avg_turnover": None,
     }
     frm = (datetime.strptime(todate, "%Y%m%d") - timedelta(days=OHLCV_LOOKBACK_DAYS)).strftime("%Y%m%d")
     df = _retry(stock.get_market_ohlcv_by_date, frm, todate, ticker)
@@ -232,6 +251,10 @@ def check_extra_signals(ticker, todate):
         last_p = float(close.iloc[-1])
         if last_p > 0:
             out["tight"] = (float(w["고가"].max()) - float(w["저가"].min())) / last_p <= TIGHT_RANGE
+
+    # 평균 거래대금(저유동 필터용): 최근 VOL_AVG_DAYS 거래일 (거래량 × 종가) 평균
+    if len(vol) >= VOL_AVG_DAYS:
+        out["avg_turnover"] = float((vol.iloc[-VOL_AVG_DAYS:] * close.iloc[-VOL_AVG_DAYS:]).mean())
     return out
 
 
@@ -260,16 +283,35 @@ def _has_light_overhead(r):
     return r.get("overhead_ratio") is not None and r["overhead_ratio"] <= OVERHEAD_LIGHT
 
 
-def _has_positive_rs(r):
-    return r.get("rs") is not None and r["rs"] > 0
+def _has_healthy_rs(r):
+    """건강한 상대강도: 지수보다 강하되(>0) 과열(RS_OVERHEAT 초과)은 아닌 구간만 가점.
+
+    RS는 60일 후행 지표라 지나치게 높으면 '이미 급등'이므로 선취매 가점에서 제외한다.
+    """
+    rs = r.get("rs")
+    return rs is not None and 0 < rs <= RS_OVERHEAT
+
+
+def _is_rs_overheated(r):
+    rs = r.get("rs")
+    return rs is not None and rs > RS_OVERHEAT
+
+
+def _rs_sortkey(r):
+    """정렬 2순위 키: 건강한 RS만 가점, 과열·음수·없음은 부스트하지 않음."""
+    rs = r.get("rs")
+    if rs is None:
+        return -1.0
+    return rs if 0 < rs <= RS_OVERHEAT else 0.0
 
 
 def premium_score(r):
-    """선취매 강도 = 4박자(기관매집·매물대가벼움·변동성수축·RS양수) 충족 개수(1~4).
+    """선취매 강도 = 4박자(기관매집·매물대가벼움·변동성수축·건강한RS) 충족 개수(1~4).
 
     기관 매집은 선취매 후보의 기본 전제이므로 항상 1점. 나머지 3개는 충족 시 가점.
+    과열 RS는 가점에서 제외(이미 급등으로 간주).
     """
-    return 1 + _has_light_overhead(r) + bool(r.get("tight")) + _has_positive_rs(r)
+    return 1 + _has_light_overhead(r) + bool(r.get("tight")) + _has_healthy_rs(r)
 
 
 def _premium_badges(r):
@@ -279,7 +321,7 @@ def _premium_badges(r):
         badges.append("매물대가벼움")
     if r.get("tight"):
         badges.append("수축")
-    if _has_positive_rs(r):
+    if _has_healthy_rs(r):
         badges.append("RS강")
     return badges
 
@@ -304,7 +346,9 @@ def _signal_flags(r):
         elif ov >= OVERHEAD_HEAVY:
             parts.append("⚠️매물대 부담")
     rs = r.get("rs")
-    if rs is not None and rs >= RS_STRONG:
+    if rs is not None and rs > RS_OVERHEAT:
+        parts.append("⚠️RS과열(이미급등)")
+    elif rs is not None and RS_STRONG <= rs <= RS_OVERHEAT:
         parts.append("강한 주도주")
     if r.get("tight"):
         parts.append("변동성 수축")
@@ -377,6 +421,12 @@ def main():
     results = [r for r in results if r.get("above_ma_trend", True)]
     log.info("가격 추세 필터: %d → %d (하락추세 %d 제외)", before, len(results), before - len(results))
 
+    # 유동성 하드 필터: 일평균 거래대금 하한 미만 제외(데이터 없으면 통과)
+    before = len(results)
+    results = [r for r in results
+               if r.get("avg_turnover") is None or r["avg_turnover"] >= MIN_AVG_TURNOVER]
+    log.info("유동성 필터: %d → %d (저유동 %d 제외)", before, len(results), before - len(results))
+
     # 신호 강도(3중>2중) → 외인 동반 → 기관 매수금액 → 연속일수 순으로 정렬
     results.sort(
         key=lambda r: (r["sig_count"], int(r["foreign_accompany"]), r["inst_sum"], r["streak"]),
@@ -388,8 +438,7 @@ def main():
     # 가장 완성도 높은(별점 높은) 선취매가 위로 오게 점수를 1순위로(텔레그램 TOP3와 일치).
     early = sorted(
         (r for r in results if r.get("early")),
-        key=lambda r: (premium_score(r), r.get("rs") if r.get("rs") is not None else -9,
-                       r["inst_sum"], r["streak"]),
+        key=lambda r: (premium_score(r), _rs_sortkey(r), r["inst_sum"], r["streak"]),
         reverse=True,
     )
 
@@ -449,6 +498,8 @@ def main():
              f"— 기관 {r['streak']}일 +{r['inst_sum'] / EOK:,.0f}억")
         if r.get("rs") is not None:
             s += f" · 시장대비 {r['rs'] * 100:+.0f}%p"
+            if _is_rs_overheated(r):
+                s += " ⚠️과열"
         badges = _premium_badges(r)
         if badges:
             s += f"  [{' · '.join(badges)}]"
