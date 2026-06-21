@@ -1,0 +1,47 @@
+{
+  "date": "20260619",
+  "picks": [
+    {
+      "ticker": "290650",
+      "name": "엘앤씨바이오",
+      "entry_close": 84500.0,
+      "score": 2,
+      "rs": 0.3400728604981972,
+      "streak": 3,
+      "inst_sum": 8464438200.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "138930",
+      "name": "BNK금융지주",
+      "entry_close": 17740.0,
+      "score": 1,
+      "rs": -0.644359891552073,
+      "streak": 9,
+      "inst_sum": 63193839540.0,
+      "badges": []
+    },
+    {
+      "ticker": "088350",
+      "name": "한화생명",
+      "entry_close": 5220.0,
+      "score": 1,
+      "rs": -0.5525160663026749,
+      "streak": 6,
+      "inst_sum": 7342550215.0,
+      "badges": []
+    },
+    {
+      "ticker": "395400",
+      "name": "SK리츠",
+      "entry_close": 5990.0,
+      "score": 1,
+      "rs": -0.6851204944262405,
+      "streak": 5,
+      "inst_sum": 5647434690.0,
+      "badges": []
+    }
+  ]
+}
