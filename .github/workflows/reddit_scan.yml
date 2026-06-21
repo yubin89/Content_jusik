@@ -1,0 +1,50 @@
+name: reddit_scan
+
+# 매일 06:22 KST (= 21:22 UTC 전날) 자동 실행 + 수동 실행(Run workflow) 가능
+# 미국 시장 종료(ET 16:00 = UTC 21:00) 직후 → 당일 활동 최대한 포함
+# 비혼잡 분(:22) 사용으로 GitHub cron 지연 확률 낮춤
+on:
+  schedule:
+    - cron: "22 21 * * *"
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # 스냅샷(data/reddit_snapshots)을 레포에 커밋하기 위함
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Reddit scan
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_A: ${{ secrets.NOTION_DB_A }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m scripts.reddit_scan
+
+      - name: Commit Reddit snapshots
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/reddit_snapshots
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: Reddit 스냅샷 $(date -u +%Y%m%d)"
+            git pull --rebase origin "${GITHUB_REF_NAME}" || true
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          else
+            echo "변경된 스냅샷 없음 — 커밋 생략"
+          fi
