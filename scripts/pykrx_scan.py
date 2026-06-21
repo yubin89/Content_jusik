@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 from pykrx import stock
 
+from scripts import track_picks
 from scripts.common import config, notify, notion_client
 from scripts.common.logger import get_logger
 
@@ -192,6 +193,8 @@ def check_extra_signals(ticker, todate):
         "ret_nd": None, "tight": False,
         # 최근 20거래일 일평균 거래대금(원) — 저유동 종목 필터용
         "avg_turnover": None,
+        # 발굴 당일 종가(성과추적 진입가용)
+        "close": None,
     }
     frm = (datetime.strptime(todate, "%Y%m%d") - timedelta(days=OHLCV_LOOKBACK_DAYS)).strftime("%Y%m%d")
     df = _retry(stock.get_market_ohlcv_by_date, frm, todate, ticker)
@@ -203,6 +206,7 @@ def check_extra_signals(ticker, todate):
 
     out = dict(blank)
     vol, close = df["거래량"], df["종가"]
+    out["close"] = float(close.iloc[-1])   # 발굴 당일 종가 = 성과추적 진입가
 
     # 거래량 급증: 최근일 거래량 vs 직전 VOL_AVG_DAYS 거래일 평균
     if len(vol) >= VOL_AVG_DAYS + 1:
@@ -523,6 +527,20 @@ def main():
             f"전체 수급 통과 {len(results)}종목 · 자세한 목록은 Notion C",
         ]
         notify.notify_success(STAGE, "\n".join(lines))
+
+    # 성과 추적: 오늘 선취매 후보 스냅샷 저장 + 1·2주 도달 cohort 평가
+    # (추적 실패가 수급 스캔 자체를 실패시키지 않도록 격리)
+    try:
+        picks = [{
+            "ticker": r["ticker"], "name": r.get("name", r["ticker"]),
+            "entry_close": r.get("close"), "score": premium_score(r),
+            "rs": r.get("rs"), "streak": r["streak"], "inst_sum": r["inst_sum"],
+            "badges": _premium_badges(r),
+        } for r in early]
+        track_picks.save_snapshot(date, picks)
+        track_picks.evaluate_and_report(date, db_id)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("성과 추적 실패(스캔은 성공): %s", exc)
 
     log.info("수급 스캔 완료 ✅")
 

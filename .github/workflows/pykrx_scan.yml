@@ -10,6 +10,8 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # 선취매 스냅샷(data/pykrx_picks)을 레포에 커밋하기 위함
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,3 +33,16 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python -m scripts.pykrx_scan
+
+      - name: Commit pick snapshots
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/pykrx_picks
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: 선취매 스냅샷/성과 $(date -u +%Y%m%d)"
+            git pull --rebase origin "${GITHUB_REF_NAME}" || true
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          else
+            echo "변경된 스냅샷 없음 — 커밋 생략"
+          fi
