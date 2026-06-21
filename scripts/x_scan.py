@@ -95,12 +95,13 @@ def _retry(fn, *args, **kwargs):
 def _fetch_tweets(token, since_dt):
     """Apify 액터를 동기 실행해 트윗 데이터셋을 받는다."""
     since_date = since_dt.strftime("%Y-%m-%d")
-    # from:HANDLE 검색어 + 날짜 하한. 대부분의 X 스크래퍼가 searchTerms를 지원.
-    terms = [f"from:{h} since:{since_date}" for h in accounts.handles()]
+    # apidojo 액터는 twitterHandles(핸들 배열)를 네이티브 지원 → from:검색어보다 안정적.
+    # 날짜 하한(start)도 함께 주되, 최종 24h 컷은 aggregate()의 in-code 필터가 담당.
     payload = {
-        "searchTerms": terms,
+        "twitterHandles": [h.lstrip("@") for h in accounts.handles()],
         "sort": "Latest",
         "maxItems": APIFY_MAX_ITEMS,
+        "start": since_date,
     }
     url = f"{APIFY_BASE}/{APIFY_ACTOR}/run-sync-get-dataset-items?token={token}"
 
@@ -114,7 +115,14 @@ def _fetch_tweets(token, since_dt):
         return r.json()
 
     data = _retry(_call)
-    return data if isinstance(data, list) else data.get("items", [])
+    if isinstance(data, list):
+        return data
+    # run-info dict 등으로 올 때 데이터셋 항목 키 폴백
+    for key in ("items", "data", "results"):
+        v = data.get(key)
+        if isinstance(v, list):
+            return v
+    return []
 
 
 def _tweet_field(t, *names):
@@ -386,6 +394,14 @@ def main():
 
         weighted, raw, n_tweets = aggregate(tweets, since_dt)
         log.info("집계 완료: 티커 %d (유효 트윗 %d)", len(weighted), n_tweets)
+
+        # 진단: 수집이 비정상적으로 적거나 유효 트윗 0이면 실제 응답 스키마를 남긴다
+        if tweets and (len(tweets) < len(accounts.handles()) or n_tweets == 0):
+            sample = tweets[0]
+            keys = list(sample.keys()) if isinstance(sample, dict) else type(sample).__name__
+            log.info("진단: 응답 적음 — 첫 항목 키=%s", keys)
+            log.info("진단: 샘플 text=%r time=%r handle=%r",
+                     _tweet_text(sample)[:120], _tweet_time(sample), _tweet_handle(sample))
         save_snapshot(today, weighted, raw, n_tweets)
 
         history = _load_history(today)
