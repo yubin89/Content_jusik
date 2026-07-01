@@ -1,0 +1,83 @@
+{
+  "date": "20260701",
+  "picks": [
+    {
+      "ticker": "145020",
+      "name": "휴젤",
+      "entry_close": 274500.0,
+      "score": 2,
+      "rs": 0.25597510554032277,
+      "streak": 4,
+      "inst_sum": 10003214000.0,
+      "badges": [
+        "RS강"
+      ]
+    },
+    {
+      "ticker": "237690",
+      "name": "에스티팜",
+      "entry_close": 131600.0,
+      "score": 2,
+      "rs": 0.07927813340526235,
+      "streak": 7,
+      "inst_sum": 42849400150.0,
+      "badges": [
+        "RS강"
+      ]
+    },
+    {
+      "ticker": "353200",
+      "name": "대덕전자",
+      "entry_close": 154400.0,
+      "score": 2,
+      "rs": 0.3573181241084695,
+      "streak": 3,
+      "inst_sum": 38257127650.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "001820",
+      "name": "삼화콘덴서",
+      "entry_close": 155500.0,
+      "score": 2,
+      "rs": 1.1887049664643443,
+      "streak": 5,
+      "inst_sum": 16403337200.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "267260",
+      "name": "HD현대일렉트릭",
+      "entry_close": 1012000.0,
+      "score": 1,
+      "rs": -0.3980668431716825,
+      "streak": 4,
+      "inst_sum": 65718565500.0,
+      "badges": []
+    },
+    {
+      "ticker": "138930",
+      "name": "BNK금융지주",
+      "entry_close": 17320.0,
+      "score": 1,
+      "rs": -0.5600687993129365,
+      "streak": 4,
+      "inst_sum": 17251158540.0,
+      "badges": []
+    },
+    {
+      "ticker": "007070",
+      "name": "GS리테일",
+      "entry_close": 23600.0,
+      "score": 1,
+      "rs": -0.44392660817074536,
+      "streak": 10,
+      "inst_sum": 8708160025.0,
+      "badges": []
+    }
+  ]
+}
