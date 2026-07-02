@@ -1,0 +1,114 @@
+{
+  "date": "20260702",
+  "picks": [
+    {
+      "ticker": "226950",
+      "name": "올릭스",
+      "entry_close": 156800.0,
+      "score": 3,
+      "rs": 0.1693009999356544,
+      "streak": 9,
+      "inst_sum": 125772446000.0,
+      "badges": [
+        "매물대가벼움",
+        "RS강"
+      ]
+    },
+    {
+      "ticker": "237690",
+      "name": "에스티팜",
+      "entry_close": 129700.0,
+      "score": 2,
+      "rs": 0.12057905468260866,
+      "streak": 8,
+      "inst_sum": 47804808550.0,
+      "badges": [
+        "RS강"
+      ]
+    },
+    {
+      "ticker": "062040",
+      "name": "산일전기",
+      "entry_close": 238000.0,
+      "score": 2,
+      "rs": 0.32767479133456967,
+      "streak": 3,
+      "inst_sum": 42109485750.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "036570",
+      "name": "NC",
+      "entry_close": 265000.0,
+      "score": 2,
+      "rs": -0.15910284417546028,
+      "streak": 4,
+      "inst_sum": 22572892750.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "007660",
+      "name": "이수페타시스",
+      "entry_close": 119800.0,
+      "score": 1,
+      "rs": -0.2601045285821548,
+      "streak": 5,
+      "inst_sum": 477336190200.0,
+      "badges": []
+    },
+    {
+      "ticker": "028050",
+      "name": "삼성E&A",
+      "entry_close": 49000.0,
+      "score": 1,
+      "rs": -0.32984985269609846,
+      "streak": 5,
+      "inst_sum": 69278369325.0,
+      "badges": []
+    },
+    {
+      "ticker": "475150",
+      "name": "SK이터닉스",
+      "entry_close": 52700.0,
+      "score": 1,
+      "rs": -0.5532342995745213,
+      "streak": 6,
+      "inst_sum": 40922381225.0,
+      "badges": []
+    },
+    {
+      "ticker": "138930",
+      "name": "BNK금융지주",
+      "entry_close": 18130.0,
+      "score": 1,
+      "rs": -0.359480701416778,
+      "streak": 5,
+      "inst_sum": 29568466870.0,
+      "badges": []
+    },
+    {
+      "ticker": "005440",
+      "name": "현대지에프홀딩스",
+      "entry_close": 15740.0,
+      "score": 1,
+      "rs": -0.25600397887481274,
+      "streak": 11,
+      "inst_sum": 14871205945.0,
+      "badges": []
+    },
+    {
+      "ticker": "145020",
+      "name": "휴젤",
+      "entry_close": 270000.0,
+      "score": 1,
+      "rs": 0.3093217447410882,
+      "streak": 5,
+      "inst_sum": 10691638500.0,
+      "badges": []
+    }
+  ]
+}
