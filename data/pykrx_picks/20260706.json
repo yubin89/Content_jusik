@@ -1,0 +1,139 @@
+{
+  "date": "20260706",
+  "picks": [
+    {
+      "ticker": "071050",
+      "name": "한국금융지주",
+      "entry_close": 249500.0,
+      "score": 2,
+      "rs": -0.3271268637994422,
+      "streak": 6,
+      "inst_sum": 86208008250.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "007070",
+      "name": "GS리테일",
+      "entry_close": 24950.0,
+      "score": 2,
+      "rs": -0.2132872963830028,
+      "streak": 13,
+      "inst_sum": 15060750250.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "047810",
+      "name": "한국항공우주",
+      "entry_close": 161100.0,
+      "score": 1,
+      "rs": -0.5249464728145964,
+      "streak": 14,
+      "inst_sum": 224199060900.0,
+      "badges": []
+    },
+    {
+      "ticker": "028050",
+      "name": "삼성E&A",
+      "entry_close": 48300.0,
+      "score": 1,
+      "rs": -0.41462427462839124,
+      "streak": 7,
+      "inst_sum": 75312379550.0,
+      "badges": []
+    },
+    {
+      "ticker": "316140",
+      "name": "우리금융지주",
+      "entry_close": 31150.0,
+      "score": 1,
+      "rs": -0.43842518765382543,
+      "streak": 5,
+      "inst_sum": 48530995275.0,
+      "badges": []
+    },
+    {
+      "ticker": "138930",
+      "name": "BNK금융지주",
+      "entry_close": 18610.0,
+      "score": 1,
+      "rs": -0.3172660337080364,
+      "streak": 7,
+      "inst_sum": 36202064965.0,
+      "badges": []
+    },
+    {
+      "ticker": "175330",
+      "name": "JB금융지주",
+      "entry_close": 26100.0,
+      "score": 1,
+      "rs": -0.516722765983255,
+      "streak": 7,
+      "inst_sum": 15933397500.0,
+      "badges": []
+    },
+    {
+      "ticker": "005440",
+      "name": "현대지에프홀딩스",
+      "entry_close": 14960.0,
+      "score": 1,
+      "rs": -0.25547453415098786,
+      "streak": 13,
+      "inst_sum": 15777767220.0,
+      "badges": []
+    },
+    {
+      "ticker": "005830",
+      "name": "DB손해보험",
+      "entry_close": 145900.0,
+      "score": 1,
+      "rs": -0.5015724330914365,
+      "streak": 3,
+      "inst_sum": 15145267400.0,
+      "badges": []
+    },
+    {
+      "ticker": "024110",
+      "name": "기업은행",
+      "entry_close": 21300.0,
+      "score": 1,
+      "rs": -0.4028781000109295,
+      "streak": 3,
+      "inst_sum": 13098623815.0,
+      "badges": []
+    },
+    {
+      "ticker": "001720",
+      "name": "신영증권",
+      "entry_close": 177600.0,
+      "score": 1,
+      "rs": -0.5192613570416685,
+      "streak": 9,
+      "inst_sum": 3294406450.0,
+      "badges": []
+    },
+    {
+      "ticker": "000240",
+      "name": "한국앤컴퍼니",
+      "entry_close": 26150.0,
+      "score": 1,
+      "rs": -0.2814765848594143,
+      "streak": 6,
+      "inst_sum": 2868688300.0,
+      "badges": []
+    },
+    {
+      "ticker": "096530",
+      "name": "씨젠",
+      "entry_close": 29050.0,
+      "score": 1,
+      "rs": 0.4968874076506584,
+      "streak": 3,
+      "inst_sum": 2480533550.0,
+      "badges": []
+    }
+  ]
+}
