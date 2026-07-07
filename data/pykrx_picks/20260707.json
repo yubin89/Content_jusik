@@ -1,0 +1,107 @@
+{
+  "date": "20260707",
+  "picks": [
+    {
+      "ticker": "007070",
+      "name": "GS리테일",
+      "entry_close": 25800.0,
+      "score": 2,
+      "rs": -0.17585682903002708,
+      "streak": 14,
+      "inst_sum": 16537444900.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "047810",
+      "name": "한국항공우주",
+      "entry_close": 160200.0,
+      "score": 1,
+      "rs": -0.5236766186575803,
+      "streak": 15,
+      "inst_sum": 242349177450.0,
+      "badges": []
+    },
+    {
+      "ticker": "071050",
+      "name": "한국금융지주",
+      "entry_close": 243500.0,
+      "score": 1,
+      "rs": -0.27550835349051406,
+      "streak": 7,
+      "inst_sum": 107933775500.0,
+      "badges": []
+    },
+    {
+      "ticker": "016360",
+      "name": "삼성증권",
+      "entry_close": 115600.0,
+      "score": 1,
+      "rs": -0.20274722192037675,
+      "streak": 7,
+      "inst_sum": 67998020350.0,
+      "badges": []
+    },
+    {
+      "ticker": "316140",
+      "name": "우리금융지주",
+      "entry_close": 31550.0,
+      "score": 1,
+      "rs": -0.3719051135696889,
+      "streak": 6,
+      "inst_sum": 56102862900.0,
+      "badges": []
+    },
+    {
+      "ticker": "138930",
+      "name": "BNK금융지주",
+      "entry_close": 18470.0,
+      "score": 1,
+      "rs": -0.2672308127076408,
+      "streak": 8,
+      "inst_sum": 41669107960.0,
+      "badges": []
+    },
+    {
+      "ticker": "005830",
+      "name": "DB손해보험",
+      "entry_close": 150100.0,
+      "score": 1,
+      "rs": -0.40081623526391297,
+      "streak": 4,
+      "inst_sum": 23433623050.0,
+      "badges": []
+    },
+    {
+      "ticker": "005440",
+      "name": "현대지에프홀딩스",
+      "entry_close": 14880.0,
+      "score": 1,
+      "rs": -0.1839730245292277,
+      "streak": 14,
+      "inst_sum": 16388205120.0,
+      "badges": []
+    },
+    {
+      "ticker": "096530",
+      "name": "씨젠",
+      "entry_close": 29300.0,
+      "score": 1,
+      "rs": 0.4822993997914393,
+      "streak": 4,
+      "inst_sum": 3940041825.0,
+      "badges": []
+    },
+    {
+      "ticker": "000240",
+      "name": "한국앤컴퍼니",
+      "entry_close": 26200.0,
+      "score": 1,
+      "rs": -0.2621969944641449,
+      "streak": 7,
+      "inst_sum": 3801394125.0,
+      "badges": []
+    }
+  ]
+}
