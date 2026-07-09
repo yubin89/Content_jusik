@@ -1,0 +1,39 @@
+{
+  "date": "20260709",
+  "picks": [
+    {
+      "ticker": "028300",
+      "name": "HLB",
+      "entry_close": 52200.0,
+      "score": 2,
+      "rs": 0.17344559333376908,
+      "streak": 5,
+      "inst_sum": 18200429650.0,
+      "badges": [
+        "RS강"
+      ]
+    },
+    {
+      "ticker": "007070",
+      "name": "GS리테일",
+      "entry_close": 25000.0,
+      "score": 2,
+      "rs": -0.1215732891028769,
+      "streak": 16,
+      "inst_sum": 19832991550.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "005830",
+      "name": "DB손해보험",
+      "entry_close": 146500.0,
+      "score": 1,
+      "rs": -0.3791639649266354,
+      "streak": 6,
+      "inst_sum": 40660478650.0,
+      "badges": []
+    }
+  ]
+}
