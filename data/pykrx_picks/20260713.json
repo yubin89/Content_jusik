@@ -1,0 +1,45 @@
+{
+  "date": "20260713",
+  "picks": [
+    {
+      "ticker": "138040",
+      "name": "메리츠금융지주",
+      "entry_close": 117000.0,
+      "score": 1,
+      "rs": -0.12002498650678162,
+      "streak": 16,
+      "inst_sum": 124577952150.0,
+      "badges": []
+    },
+    {
+      "ticker": "005830",
+      "name": "DB손해보험",
+      "entry_close": 159100.0,
+      "score": 1,
+      "rs": -0.15205482039052498,
+      "streak": 8,
+      "inst_sum": 71078810200.0,
+      "badges": []
+    },
+    {
+      "ticker": "028670",
+      "name": "팬오션",
+      "entry_close": 5240.0,
+      "score": 1,
+      "rs": -0.1416760078577558,
+      "streak": 12,
+      "inst_sum": 15852021243.0,
+      "badges": []
+    },
+    {
+      "ticker": "181710",
+      "name": "NHN",
+      "entry_close": 38250.0,
+      "score": 1,
+      "rs": -0.19355439827148746,
+      "streak": 7,
+      "inst_sum": 8054246550.0,
+      "badges": []
+    }
+  ]
+}
