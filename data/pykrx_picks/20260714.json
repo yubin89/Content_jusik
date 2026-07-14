@@ -1,0 +1,57 @@
+{
+  "date": "20260714",
+  "picks": [
+    {
+      "ticker": "007070",
+      "name": "GS리테일",
+      "entry_close": 25500.0,
+      "score": 2,
+      "rs": -0.025363664448241563,
+      "streak": 19,
+      "inst_sum": 27206458300.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "036930",
+      "name": "주성엔지니어링",
+      "entry_close": 192600.0,
+      "score": 1,
+      "rs": 1.9897815640645637,
+      "streak": 4,
+      "inst_sum": 50446627250.0,
+      "badges": []
+    },
+    {
+      "ticker": "316140",
+      "name": "우리금융지주",
+      "entry_close": 30700.0,
+      "score": 1,
+      "rs": -0.24016296141062188,
+      "streak": 3,
+      "inst_sum": 28031922775.0,
+      "badges": []
+    },
+    {
+      "ticker": "175330",
+      "name": "JB금융지주",
+      "entry_close": 26950.0,
+      "score": 1,
+      "rs": -0.23335812010367685,
+      "streak": 4,
+      "inst_sum": 16233532150.0,
+      "badges": []
+    },
+    {
+      "ticker": "181710",
+      "name": "NHN",
+      "entry_close": 37850.0,
+      "score": 1,
+      "rs": -0.16904702168463237,
+      "streak": 8,
+      "inst_sum": 8634999600.0,
+      "badges": []
+    }
+  ]
+}
