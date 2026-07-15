@@ -175,7 +175,7 @@ def main():
 
     except Exception as exc:
         log.exception("분석 실패")
-        notify.notify_error(STAGE, str(exc), traceback.format_exc())
+        notify.notify_error(STAGE, f"{exc}\n\n{traceback.format_exc()}")
         sys.exit(1)
 
 
