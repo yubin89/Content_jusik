@@ -1,0 +1,57 @@
+{
+  "date": "20260715",
+  "picks": [
+    {
+      "ticker": "007070",
+      "name": "GS리테일",
+      "entry_close": 25700.0,
+      "score": 2,
+      "rs": -0.07814740478437665,
+      "streak": 20,
+      "inst_sum": 27398146450.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "138040",
+      "name": "메리츠금융지주",
+      "entry_close": 116900.0,
+      "score": 1,
+      "rs": -0.18323494445135569,
+      "streak": 18,
+      "inst_sum": 135635112300.0,
+      "badges": []
+    },
+    {
+      "ticker": "005830",
+      "name": "DB손해보험",
+      "entry_close": 162500.0,
+      "score": 1,
+      "rs": -0.2387576799359098,
+      "streak": 10,
+      "inst_sum": 98655790600.0,
+      "badges": []
+    },
+    {
+      "ticker": "005940",
+      "name": "NH투자증권",
+      "entry_close": 31100.0,
+      "score": 1,
+      "rs": -0.2954181730466464,
+      "streak": 14,
+      "inst_sum": 41381692750.0,
+      "badges": []
+    },
+    {
+      "ticker": "139130",
+      "name": "iM금융지주",
+      "entry_close": 18130.0,
+      "score": 1,
+      "rs": -0.20691928649743496,
+      "streak": 3,
+      "inst_sum": 6681161355.0,
+      "badges": []
+    }
+  ]
+}
