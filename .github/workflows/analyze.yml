@@ -1,0 +1,39 @@
+name: analyze
+
+# pykrx_scan 완료 직후 자동 실행 (수집이 몇 시에 돌든 그 직후 분석 보장).
+# 백업 cron(22:00 KST)으로 workflow_run 누락에 대비.
+# ⚠️ workflow_run·schedule은 기본 브랜치(main)의 워크플로에서만 발동.
+on:
+  workflow_run:
+    workflows: ["pykrx_scan"]
+    types: [completed]
+  schedule:
+    - cron: "0 13 * * *"   # 백업: 22:00 KST (workflow_run 누락 대비)
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run content planning analysis
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_A: ${{ secrets.NOTION_DB_A }}
+          NOTION_DB_B: ${{ secrets.NOTION_DB_B }}
+          NOTION_DB_C: ${{ secrets.NOTION_DB_C }}
+          NOTION_DB_D: ${{ secrets.NOTION_DB_D }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m scripts.analyze

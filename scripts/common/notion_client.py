@@ -109,3 +109,39 @@ def bullet(text):
             "rich_text": [{"type": "text", "text": {"content": text[:2000]}}]
         },
     }
+
+
+# ---- 읽기 헬퍼 (Step 5 analyze.py용) ----
+
+def query_latest_page(database_id):
+    """DB에서 가장 최근에 생성된 페이지 1개를 반환. 없으면 None."""
+    result = _retry(
+        client().databases.query,
+        database_id=database_id,
+        sorts=[{"timestamp": "created_time", "direction": "descending"}],
+        page_size=1,
+    )
+    pages = result.get("results", [])
+    return pages[0] if pages else None
+
+
+def read_page_text(page_id):
+    """페이지 블록을 모두 읽어 plain text로 이어 붙인다(페이지네이션 지원)."""
+    texts = []
+    cursor = None
+    while True:
+        kwargs = {"block_id": page_id, "page_size": 100}
+        if cursor:
+            kwargs["start_cursor"] = cursor
+        result = _retry(client().blocks.children.list, **kwargs)
+        for block in result.get("results", []):
+            btype = block.get("type", "")
+            bdata = block.get(btype, {})
+            rich_text = bdata.get("rich_text", [])
+            line = "".join(rt.get("plain_text", "") for rt in rich_text)
+            if line:
+                texts.append(line)
+        if not result.get("has_more"):
+            break
+        cursor = result.get("next_cursor")
+    return "\n".join(texts)

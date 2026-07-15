@@ -1,10 +1,11 @@
 name: pykrx_scan
 
-# 매일 19:43 KST (= 10:43 UTC) 자동 실행 + 수동 실행(Run workflow) 가능
-# DART(19:13) 직후로 저녁에 배치. 비혼잡 분(:43)으로 GitHub cron 지연 확률을 낮춤.
+# 매일 16:30 KST (= 07:30 UTC) 자동 실행 + 수동 실행(Run workflow) 가능
+# DART(16:05) 직후, 한국장 마감(15:30) 후 KRX 수급 데이터가 발행되는 시각.
+# GitHub Actions 무료 cron은 best-effort(2~5시간 지연 가능) → 비혼잡 분(:30) 사용.
 on:
   schedule:
-    - cron: "43 10 * * *"
+    - cron: "30 7 * * *"
   workflow_dispatch:
 
 jobs:

@@ -1,11 +1,11 @@
 name: dart_scan
 
-# 매일 19:13 KST (= 10:13 UTC) 자동 실행 + 수동 실행(Run workflow) 가능
-# 저녁으로 옮긴 이유: ① 장 마감 후 저녁까지 올라오는 DART 공시를 더 많이 확보
-#   ② 정각/반시각은 전 세계 cron이 몰려 GitHub가 수십분~수시간 지연 → 비혼잡 분(:13) 사용
+# 매일 16:05 KST (= 07:05 UTC) 자동 실행 + 수동 실행(Run workflow) 가능
+# 16:05 KST: 한국장 마감(15:30) 직후 이른 시각으로, 당일 장 중 DART 공시 대부분 확보.
+# GitHub Actions 무료 cron은 best-effort(2~5시간 지연 가능) → 비혼잡 분(:05) 사용으로 완화.
 on:
   schedule:
-    - cron: "13 10 * * *"
+    - cron: "5 7 * * *"
   workflow_dispatch:
 
 jobs:
