@@ -1,11 +1,13 @@
-"""Notion 쓰기 헬퍼.
+"""Notion 쓰기/읽기 헬퍼.
 
 - 데이터베이스에 페이지(행) 생성
 - 페이지에 블록(본문) 추가 (100개/요청 한도에 맞춰 청크 분할)
+- DB 최신 페이지 조회 / 페이지 텍스트 읽기 (requests 직접 호출 — SDK 버전 무관)
 - rate-limit(429)/일시 오류(5xx)에 지수 백오프 재시도
 """
 import time
 
+import requests as _req
 from notion_client import Client
 from notion_client.errors import (
     APIResponseError,
@@ -111,16 +113,49 @@ def bullet(text):
     }
 
 
-# ---- 읽기 헬퍼 (Step 5 analyze.py용) ----
+# ---- 읽기 헬퍼 (Step 5 analyze.py용) — requests 직접 호출로 SDK 버전 무관 ----
+
+_NOTION_API = "https://api.notion.com/v1"
+_NOTION_VERSION = "2022-06-28"
+
+
+def _http_headers():
+    return {
+        "Authorization": f"Bearer {config.get('NOTION_TOKEN')}",
+        "Notion-Version": _NOTION_VERSION,
+        "Content-Type": "application/json",
+    }
+
+
+def _http_retry(fn):
+    """requests 호출 전용 재시도."""
+    delay = 2
+    last_exc = None
+    for attempt in range(1, 5):
+        try:
+            return fn()
+        except Exception as exc:
+            last_exc = exc
+            log.warning("Notion HTTP 재시도 (%s/4): %s", attempt, exc)
+            time.sleep(delay)
+            delay *= 2
+    raise last_exc
+
 
 def query_latest_page(database_id):
     """DB에서 가장 최근에 생성된 페이지 1개를 반환. 없으면 None."""
-    result = _retry(
-        client().databases.query,
-        database_id=database_id,
-        sorts=[{"timestamp": "created_time", "direction": "descending"}],
-        page_size=1,
-    )
+    url = f"{_NOTION_API}/databases/{database_id}/query"
+    payload = {
+        "sorts": [{"timestamp": "created_time", "direction": "descending"}],
+        "page_size": 1,
+    }
+
+    def _call():
+        resp = _req.post(url, headers=_http_headers(), json=payload, timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+
+    result = _http_retry(_call)
     pages = result.get("results", [])
     return pages[0] if pages else None
 
@@ -130,18 +165,25 @@ def read_page_text(page_id):
     texts = []
     cursor = None
     while True:
-        kwargs = {"block_id": page_id, "page_size": 100}
+        url = f"{_NOTION_API}/blocks/{page_id}/children"
+        params = {"page_size": 100}
         if cursor:
-            kwargs["start_cursor"] = cursor
-        result = _retry(client().blocks.children.list, **kwargs)
-        for block in result.get("results", []):
+            params["start_cursor"] = cursor
+
+        def _call(u=url, p=params):
+            resp = _req.get(u, headers=_http_headers(), params=p, timeout=30)
+            resp.raise_for_status()
+            return resp.json()
+
+        data = _http_retry(_call)
+        for block in data.get("results", []):
             btype = block.get("type", "")
             bdata = block.get(btype, {})
             rich_text = bdata.get("rich_text", [])
             line = "".join(rt.get("plain_text", "") for rt in rich_text)
             if line:
                 texts.append(line)
-        if not result.get("has_more"):
+        if not data.get("has_more"):
             break
-        cursor = result.get("next_cursor")
+        cursor = data.get("next_cursor")
     return "\n".join(texts)
