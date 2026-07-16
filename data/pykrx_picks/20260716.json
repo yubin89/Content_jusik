@@ -1,0 +1,101 @@
+{
+  "date": "20260716",
+  "picks": [
+    {
+      "ticker": "353200",
+      "name": "대덕전자",
+      "entry_close": 138000.0,
+      "score": 2,
+      "rs": 0.3871510296159395,
+      "streak": 6,
+      "inst_sum": 324025914950.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "281820",
+      "name": "케이씨텍",
+      "entry_close": 100800.0,
+      "score": 2,
+      "rs": 0.7194962780902203,
+      "streak": 3,
+      "inst_sum": 12542123450.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "139130",
+      "name": "iM금융지주",
+      "entry_close": 18410.0,
+      "score": 2,
+      "rs": -0.13385382933938517,
+      "streak": 4,
+      "inst_sum": 9413108580.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "240810",
+      "name": "원익IPS",
+      "entry_close": 140700.0,
+      "score": 1,
+      "rs": 0.47551737935673044,
+      "streak": 6,
+      "inst_sum": 310085220650.0,
+      "badges": []
+    },
+    {
+      "ticker": "138040",
+      "name": "메리츠금융지주",
+      "entry_close": 118300.0,
+      "score": 1,
+      "rs": -0.08126929434917196,
+      "streak": 19,
+      "inst_sum": 140132379800.0,
+      "badges": []
+    },
+    {
+      "ticker": "005830",
+      "name": "DB손해보험",
+      "entry_close": 163000.0,
+      "score": 1,
+      "rs": -0.15233986860108295,
+      "streak": 11,
+      "inst_sum": 111757849650.0,
+      "badges": []
+    },
+    {
+      "ticker": "475150",
+      "name": "SK이터닉스",
+      "entry_close": 52000.0,
+      "score": 1,
+      "rs": -0.1390772125274693,
+      "streak": 6,
+      "inst_sum": 34316042025.0,
+      "badges": []
+    },
+    {
+      "ticker": "175330",
+      "name": "JB금융지주",
+      "entry_close": 27400.0,
+      "score": 1,
+      "rs": -0.22132057710363173,
+      "streak": 6,
+      "inst_sum": 19875973200.0,
+      "badges": []
+    },
+    {
+      "ticker": "007340",
+      "name": "DN오토모티브",
+      "entry_close": 40800.0,
+      "score": 1,
+      "rs": -0.11595070735676527,
+      "streak": 6,
+      "inst_sum": 7543519600.0,
+      "badges": []
+    }
+  ]
+}
