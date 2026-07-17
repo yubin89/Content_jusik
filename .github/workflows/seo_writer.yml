@@ -1,0 +1,36 @@
+name: seo_writer
+
+# analyze(콘텐츠 기획) 완료 직후 자동 실행 → 노션 D 읽어 SEO 글을 워드프레스 초안으로 저장.
+# ⚠️ workflow_run은 기본 브랜치(main)의 워크플로에서만 발동.
+on:
+  workflow_run:
+    workflows: ["analyze"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  seo_writer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write SEO article and save as WordPress draft
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_D: ${{ secrets.NOTION_DB_D }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          WP_URL: ${{ secrets.WP_URL }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m scripts.seo_writer
