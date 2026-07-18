@@ -1,0 +1,75 @@
+name: living_publish
+
+# 리빙 리뷰 초안 생성 → 자체 사이트(site/_posts) 커밋 발행.
+# 지금은 수동 실행(Run workflow)만. Phase 2에서 트렌드 감지 cron을 추가한다.
+# 사진이 필요한 글은 site/assets/photos/<slug>/ 에 먼저 커밋해 두거나,
+# 사진 없이 초안만 뽑은 뒤 나중에 이미지를 채우는 흐름을 권장.
+on:
+  workflow_dispatch:
+    inputs:
+      keyword:
+        description: "핵심 키워드/주제 (예: 에어프라이어 추천)"
+        required: true
+      product:
+        description: "쿠팡 상품 URL 또는 검색어 (선택)"
+        required: false
+        default: ""
+      tone:
+        description: "말투"
+        required: true
+        default: "seo"
+        type: choice
+        options: ["seo", "my"]
+      publish:
+        description: "발행 채널"
+        required: true
+        default: "site"
+        type: choice
+        options: ["site", "notion", "both"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # site/_posts 커밋을 위해 필요
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate living draft
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
+          COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_LIVING: ${{ secrets.NOTION_DB_LIVING }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python -m scripts.living_draft \
+            --keyword "${{ github.event.inputs.keyword }}" \
+            --product "${{ github.event.inputs.product }}" \
+            --tone "${{ github.event.inputs.tone }}" \
+            --publish "${{ github.event.inputs.publish }}"
+
+      - name: Commit new post
+        if: ${{ github.event.inputs.publish != 'notion' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add site/_posts site/assets/photos
+          if ! git diff --cached --quiet; then
+            git commit -m "post: 리빙 초안 ${{ github.event.inputs.keyword }} $(date -u +%Y%m%d)"
+            git pull --rebase origin "${GITHUB_REF_NAME}" || true
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          else
+            echo "새 포스트 없음 — 커밋 생략"
+          fi

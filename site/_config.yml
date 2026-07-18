@@ -1,0 +1,32 @@
+# Jekyll 설정 — GitHub Pages 네이티브(빌드 불필요).
+# GitHub repo Settings > Pages > Source: 브랜치 main / 폴더 /site 로 지정.
+title: 리빙 로그
+description: 음식·패션·취미·생활용품 실사용 리뷰 블로그
+lang: ko-KR
+
+# GitHub Pages 배포 시 실제 값으로 교체(사이트 URL). 예: https://yubin89.github.io
+url: ""
+baseurl: ""
+
+# SEO: 메타태그/OG는 jekyll-seo-tag, sitemap.xml은 jekyll-sitemap이 자동 생성.
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+
+# 저자/소셜 (jekyll-seo-tag가 사용)
+author:
+  name: 리빙 로그
+
+# 포스트 기본값
+defaults:
+  - scope:
+      path: ""
+      type: posts
+    values:
+      layout: post
+
+# 빌드에서 제외
+exclude:
+  - README.md
+  - Gemfile
+  - Gemfile.lock

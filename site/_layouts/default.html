@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="{{ site.lang | default: 'ko-KR' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {%- seo -%}
+  <style>
+    :root { color-scheme: light dark; }
+    body { max-width: 720px; margin: 0 auto; padding: 24px;
+           font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+           line-height: 1.75; }
+    header a { text-decoration: none; font-weight: 700; font-size: 1.25rem; }
+    img { max-width: 100%; height: auto; border-radius: 8px; }
+    article h2 { margin-top: 2em; }
+    .post-list { list-style: none; padding: 0; }
+    .post-list li { margin: 1.25em 0; }
+    .post-meta { color: #888; font-size: 0.9rem; }
+    footer { margin-top: 4em; padding-top: 1em; border-top: 1px solid #ddd;
+             font-size: 0.85rem; color: #888; }
+  </style>
+</head>
+<body>
+  <header><a href="{{ '/' | relative_url }}">{{ site.title }}</a></header>
+  <main>{{ content }}</main>
+  <footer>
+    <p>© {{ site.time | date: '%Y' }} {{ site.title }}</p>
+  </footer>
+</body>
+</html>
