@@ -21,35 +21,52 @@
   저품질 위험이 있으니 글 1개당 링크는 1~2개, 정보성 본문 위주로.
 - **자체 사이트**: `site/` = Jekyll(GitHub Pages 네이티브). 포스트를 커밋하면 자동 배포.
 
-## 실행 방법
+## 콘텐츠 엔진 (작가↔검수 에이전트 루프)
 
-### 로컬/수동
+글은 **작가 에이전트**가 쓰고 **검수 에이전트**가 SEO·품질을 평가해 수정 가이드를 주면
+작가가 다시 쓰는 과정을 반복해 완성합니다. **생성과 발행은 분리**되어 있어 초안은 절대
+자동으로 나가지 않고, 항상 최종본을 사람이 확인한 뒤 발행합니다.
+
+### 3단계 흐름
+
 ```bash
-# 사진 없이 초안만 (파트너스 승인 전에도 동작)
-python -m scripts.living_draft --keyword "에어프라이어 추천" --tone seo --publish site
+# 1) 생성 — 작가→검수 반복 후 drafts/ 에 저장(발행 안 함)
+python -m scripts.living_draft --keyword "에어프라이어 추천" --type 실사용후기 \
+  --tone seo --photos ~/pics/af --product "에어프라이어" --max-rounds 2
 
-# 내 사진 + 쿠팡 링크 + 내 말투
-python -m scripts.living_draft \
-  --keyword "무선 청소기 후기" \
-  --product "https://www.coupang.com/vp/products/123..." \
-  --photos ~/pics/cleaner \
-  --notes notes.txt \
-  --tone my --voice-sample my_voice.txt \
-  --publish both
+# 2) (선택) 사람 피드백으로 수동 재작성
+python -m scripts.living_draft --revise drafts/2026-07-18-airfryer.json \
+  --feedback "도입부 더 짧게, 가격대 정보 추가"
+
+# 3) 최종 컨펌 후 발행
+python -m scripts.living_draft --publish-draft drafts/2026-07-18-airfryer.json --to site
 ```
 
-옵션:
+생성 옵션:
 - `--keyword` (필수): 핵심 주제/키워드
+- `--type`: `실사용후기` | `장점` | `단점` | `상품소개` | `일상일기` (유형별 글 구조가 달라짐)
 - `--product`: 쿠팡 상품 URL 또는 검색어. URL이면 추천링크만, 검색어면 대표이미지+링크 조회
-- `--photos`: 사진 폴더. 이미지들을 `site/assets/photos/<slug>/`로 복사하고 본문에 자동 배치
-- `--notes`: 실사용 메모(텍스트 또는 파일 경로) → 후기에 반영
+- `--photos`: 사진 폴더 → `site/assets/photos/<slug>/`로 복사하고 본문에 자동 배치
+- `--notes`: 실사용 메모(텍스트 또는 파일 경로) → 글에 반영
 - `--tone`: `seo`(검색 최적 존댓말) 또는 `my`(내 말투 흉내)
 - `--voice-sample`: `my`일 때 내 글 샘플 파일(few-shot)
-- `--publish`: `site` | `notion` | `both`
+- `--max-rounds`(기본 2), `--pass-score`(기본 80): 검수 반복 횟수와 통과 점수
+- 환경변수 `LIVING_MODEL`: 글 품질을 높이려면 `claude-opus-4-8` 등으로 교체
+
+발행 옵션: `--publish-draft <draft.json> --to site|notion|both`
+
+### 에이전트 고도화("학습") — `style/`
+코드를 안 고치고도 품질을 키웁니다(자세히는 `style/README.md`):
+- `style/rubric.md` — 검수 기준 체크리스트(고치면 검수 방향이 바뀜)
+- `style/examples/` — 마음에 든 글/‘수정 전→후’ 예시를 넣으면 작가에 few-shot으로 주입
+- `scripts/agents/prompts/*.md` — 작가·검수 시스템 프롬프트, 유형별 지침(편집형)
+- 운영: 초반 `--max-rounds 1`로 보며 손보고 예시를 쌓다가, 성숙하면
+  `--max-rounds 3 --pass-score 85`로 무인 반복 → 최종본만 확인·발행.
 
 ### GitHub Actions
-`.github/workflows/living_publish.yml` → Actions 탭에서 **Run workflow**로 키워드·말투·채널
-입력 실행. `site` 발행 시 `site/_posts`를 자동 커밋합니다. (Phase 2에서 트렌드 cron 추가 예정)
+`.github/workflows/living_publish.yml`에서 **Run workflow**로 키워드·유형 실행(수동).
+> 참고: 워크플로는 아직 1차(한방 생성) 흐름 기준입니다. 위 3단계(생성→컨펌 발행)에 맞춘
+> 워크플로 개편은 Track 1(급상승 자동화) 착수 때 함께 진행합니다.
 
 ## GitHub Secrets
 
@@ -100,10 +117,15 @@ repo Settings → Pages → Source: **Branch `main`, Folder `/site`** 선택.
 
 | 경로 | 역할 |
 |---|---|
-| `scripts/living_draft.py` | 초안 생성 엔트리포인트(2채널 출력) |
+| `scripts/living_draft.py` | 오케스트레이터(작가↔검수 루프·스테이징·발행) 엔트리포인트 |
+| `scripts/agents/writer.py` | 작가 에이전트(초안 작성/재작성) |
+| `scripts/agents/reviewer.py` | 검수 에이전트(SEO·품질 평가 → 수정 가이드) |
+| `scripts/agents/prompts/*.md` | 작가·검수 프롬프트, 유형별 지침(편집형) |
+| `style/` | 학습 자산(검수 루브릭 + few-shot 예시) |
 | `scripts/common/coupang.py` | 쿠팡 파트너스 API(deeplink·대표이미지) |
 | `scripts/common/affiliate.py` | 제휴 링크 블록 + 고지문구 |
+| `drafts/` | 초안 스테이징(발행 전 임시본, git 미추적) |
 | `site/` | Jekyll 정적 블로그(GitHub Pages) |
-| `.github/workflows/living_publish.yml` | 수동/자동 발행 워크플로 |
+| `.github/workflows/living_publish.yml` | 수동 발행 워크플로(1차 흐름) |
 
 주식 파이프라인(`pykrx_scan.py`·`dart_scan.py`·`x_scan.py`·`analyze.py`)은 건드리지 않았습니다.

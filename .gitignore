@@ -4,3 +4,7 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
+
+# 리빙 초안 스테이징(작업 파일) — 발행 전 임시본은 커밋하지 않음
+drafts/*
+!drafts/.gitkeep
