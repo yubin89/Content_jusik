@@ -1,0 +1,45 @@
+{
+  "date": "20260720",
+  "picks": [
+    {
+      "ticker": "005830",
+      "name": "DB손해보험",
+      "entry_close": 159000.0,
+      "score": 1,
+      "rs": -0.08854609040650752,
+      "streak": 12,
+      "inst_sum": 123859621100.0,
+      "badges": []
+    },
+    {
+      "ticker": "175330",
+      "name": "JB금융지주",
+      "entry_close": 26450.0,
+      "score": 1,
+      "rs": -0.165400589556165,
+      "streak": 7,
+      "inst_sum": 20285308850.0,
+      "badges": []
+    },
+    {
+      "ticker": "139130",
+      "name": "iM금융지주",
+      "entry_close": 17900.0,
+      "score": 1,
+      "rs": -0.07690679198674832,
+      "streak": 5,
+      "inst_sum": 13597345415.0,
+      "badges": []
+    },
+    {
+      "ticker": "007340",
+      "name": "DN오토모티브",
+      "entry_close": 38650.0,
+      "score": 1,
+      "rs": -0.032776181961003736,
+      "streak": 7,
+      "inst_sum": 8855852300.0,
+      "badges": []
+    }
+  ]
+}
