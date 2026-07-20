@@ -1,0 +1,38 @@
+name: seo_writer
+
+# 주 3회(월·수·금) 저녁 18:00 KST(=09:00 UTC)에 실행.
+# 최근 며칠 치 노션 D 기획 요약 중 최고 소재를 골라 SEO 글을 워드프레스 초안으로 저장.
+# 매일 대량 발행은 구글에 '양산형'으로 불리 → 주 3회 품질 집중.
+# ⚠️ GitHub Actions 무료 cron은 best-effort(수~수십 분 지연 가능).
+# ⚠️ schedule은 기본 브랜치(main)의 워크플로에서만 발동.
+on:
+  schedule:
+    - cron: "0 9 * * 1,3,5"   # 월·수·금 18:00 KST
+  workflow_dispatch:
+
+jobs:
+  seo_writer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write SEO article and save as WordPress draft
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DB_D: ${{ secrets.NOTION_DB_D }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          WP_URL: ${{ secrets.WP_URL }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m scripts.seo_writer

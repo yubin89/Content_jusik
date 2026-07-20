@@ -160,6 +160,23 @@ def query_latest_page(database_id):
     return pages[0] if pages else None
 
 
+def query_recent_pages(database_id, count=5):
+    """DB에서 최근 생성된 페이지를 최신순으로 최대 count개 반환. 없으면 빈 리스트."""
+    url = f"{_NOTION_API}/databases/{database_id}/query"
+    payload = {
+        "sorts": [{"timestamp": "created_time", "direction": "descending"}],
+        "page_size": count,
+    }
+
+    def _call():
+        resp = _req.post(url, headers=_http_headers(), json=payload, timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+
+    result = _http_retry(_call)
+    return result.get("results", [])
+
+
 def read_page_text(page_id):
     """페이지 블록을 모두 읽어 plain text로 이어 붙인다(페이지네이션 지원)."""
     texts = []
