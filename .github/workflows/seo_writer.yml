@@ -29,6 +29,7 @@ jobs:
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DB_D: ${{ secrets.NOTION_DB_D }}
+          NOTION_DB_SEO: ${{ secrets.NOTION_DB_SEO }}   # SEO 검토 기록용(선택). 없으면 기록만 생략
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           WP_URL: ${{ secrets.WP_URL }}
           WP_USER: ${{ secrets.WP_USER }}

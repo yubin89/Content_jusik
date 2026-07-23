@@ -15,6 +15,7 @@ scripts/seo_writer.py — 노션 D → SEO 블로그 글 작성 → 워드프레
   NOTION_TOKEN, NOTION_DB_D, ANTHROPIC_API_KEY
   WP_URL, WP_USER, WP_APP_PASSWORD
   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+  NOTION_DB_SEO (선택) — 있으면 SEO 검토 결과(점수·바꾼 부분·이유)를 여기에 기록
 """
 import json
 import sys
@@ -103,18 +104,28 @@ _DRAFT_SYSTEM = """\
 
 _REVIEW_SYSTEM = """\
 당신은 한국 주식/투자 블로그의 SEO 편집장입니다.
-아래 블로그 초안을 검수하세요. 글을 직접 다시 쓰지 말고, 개선점만 한국어 불릿으로
-구체적으로 지적하세요(무엇을, 어떻게 고칠지).
+아래 블로그 초안을 구글 SEO·AI검색 관점에서 항목별로 엄격히 검수하세요.
+글을 직접 다시 쓰지 말고, 항목별 문제점과 구체적 개선 방법만 지적하세요.
 
-[점검 항목]
-- 제목·메타설명이 SEO에 맞는지(길이, 키워드 위치, 클릭 유도)
-- 키워드가 자연스러운지, 억지스럽지 않은지
-- 구조·가독성(소제목 흐름, 문단 길이)
-- 눈높이가 적절한지(입문~초중급 대상: 너무 유치하지도, 너무 어렵지도 않게)
-- 과장·단정 표현, 신뢰성 문제
-- 투자 유의 문구 유무
+[검수 체크리스트]
+1. 제목: 30~60자, 핵심 키워드 앞쪽, 클릭 유도(낚시 X)
+2. 메타설명: 70~155자, 키워드 포함, 내용 요약력
+3. 소제목(H2) 구조: 논리적 흐름, 가능하면 질문형(검색어와 일치)
+4. 키워드: 도입부 포함, 자연스러운 반복(억지 X)
+5. 자문자답형 문단: 핵심 질문의 답이 130~170단어의 자체 완결 문단으로 정리됐는지(AI 검색 인용 대응)
+6. E-E-A-T: 근거·출처, 시의성, 신뢰성, 투자 유의 문구
+7. 가독성: 문단 길이, 입문~초중급 눈높이
+8. AI 티: 기계적·군더더기 표현 없이 자연스러운지
 
-핵심 위주로 500자 이내. 개선점이 거의 없으면 "양호"라고만 쓰세요.
+[응답 형식] 반드시 아래 JSON만 출력. 다른 텍스트 없이:
+{
+  "score": SEO 완성도 0~100 정수,
+  "findings": [
+    {"area": "항목명(예: 제목)", "issue": "무엇이 문제인지", "fix": "어떻게 고칠지"}
+  ],
+  "overall": "총평 한두 문장"
+}
+개선점이 없으면 findings를 빈 배열([])로 두세요.
 """
 
 _REVISE_SYSTEM = """\
@@ -162,8 +173,18 @@ def _parse_json(raw):
     return json.loads(raw)
 
 
+def _format_guide(audit):
+    """검수 결과(dict)를 Sonnet에게 줄 개선 가이드 텍스트로 변환."""
+    lines = []
+    for f in audit.get("findings", []):
+        lines.append(f"- [{f.get('area', '')}] {f.get('issue', '')} → {f.get('fix', '')}")
+    if not lines:
+        return "특이 개선점 없음(양호). 그대로 다듬어 완성하세요."
+    return "\n".join(lines)
+
+
 def _generate_article(sources):
-    """3단계(초안→검수→최종) 파이프라인으로 최종 기사 dict를 만든다."""
+    """3단계(초안→검수→최종) 파이프라인. (최종 기사 dict, 검수 결과 dict|None) 반환."""
     api = _client()
     src_block = _format_sources(sources)
 
@@ -175,13 +196,20 @@ def _generate_article(sources):
         max_tokens=4096,
     )
 
-    # 2단계: Opus 검수 (개선 가이드만, 재작성 X)
-    log.info("2/3 검수 중... (%s)", MODEL_REVIEW)
-    guide = _call(
+    # 2단계: Opus SEO 검수 (체크리스트 기반 점수 + 개선점, 재작성 X)
+    log.info("2/3 SEO 검수 중... (%s)", MODEL_REVIEW)
+    audit_raw = _call(
         api, MODEL_REVIEW, _REVIEW_SYSTEM,
         f"[검수할 초안]\n{draft_raw}",
-        max_tokens=1024,
+        max_tokens=1536,
     )
+    try:
+        audit = _parse_json(audit_raw)
+        guide = _format_guide(audit)
+    except Exception as exc:
+        log.warning("검수 결과 JSON 파싱 실패 — 텍스트 그대로 사용: %s", exc)
+        audit = None
+        guide = audit_raw
 
     # 3단계: Sonnet 최종본 (가이드 반영)
     log.info("3/3 최종본 작성 중... (%s)", MODEL_DRAFT)
@@ -191,7 +219,7 @@ def _generate_article(sources):
         "위를 반영해 최종 글을 완성하세요.",
         max_tokens=4096,
     )
-    return _parse_json(final_raw)
+    return _parse_json(final_raw), audit
 
 
 # ---- 워드프레스 REST API ----
@@ -249,6 +277,34 @@ def _create_draft(article, date_str):
     return data.get("link") or data.get("guid", {}).get("rendered", "")
 
 
+def _log_seo_review_to_notion(audit, article, date_str):
+    """SEO 검수 결과(점수·바꾼 부분·이유)를 노션에 기록. NOTION_DB_SEO 미설정 시 생략."""
+    db_id = config.get_optional("NOTION_DB_SEO")
+    if not db_id:
+        log.info("NOTION_DB_SEO 미설정 — SEO 검토 기록 생략")
+        return
+    if not audit:
+        log.info("검수 결과 없음 — SEO 검토 기록 생략")
+        return
+
+    title = f"🔍 SEO 검토 {date_str} — {article.get('title', '')}"
+    blocks = [
+        nc.paragraph(f"SEO 점수: {audit.get('score', '-')}/100"),
+        nc.paragraph(f"총평: {audit.get('overall', '')}"),
+    ]
+    findings = audit.get("findings", [])
+    if findings:
+        blocks.append(nc.heading("개선 항목 (바꾼 부분 · 이유)", 2))
+        for f in findings:
+            blocks.append(nc.bullet(f"[{f.get('area', '')}] {f.get('issue', '')}"))
+            blocks.append(nc.paragraph(f"→ 개선: {f.get('fix', '')}"))
+    else:
+        blocks.append(nc.paragraph("지적 사항 없음 (양호)"))
+
+    nc.create_page_in_database(db_id, title, blocks)
+    log.info("SEO 검토 기록 저장 완료(노션)")
+
+
 def main():
     config.require([
         "NOTION_TOKEN", "NOTION_DB_D", "ANTHROPIC_API_KEY",
@@ -268,19 +324,29 @@ def main():
             return
         log.info("기획 요약 %d건 확보 — 소재 선별 후 작성", len(sources))
 
-        article = _generate_article(sources)
+        article, audit = _generate_article(sources)
 
         log.info("워드프레스 초안 저장 중...")
         link = _create_draft(article, date_str)
         log.info("초안 저장 완료: %s", link)
 
-        tg_msg = "\n".join([
+        # SEO 검토 결과(점수·바꾼 부분·이유)를 노션에 기록 (실패해도 전체는 성공 처리)
+        try:
+            _log_seo_review_to_notion(audit, article, date_str)
+        except Exception as exc:
+            log.warning("SEO 검토 노션 기록 실패(건너뜀): %s", exc)
+
+        tg_lines = [
             f"{date_str} SEO 글 초안 완성",
             f"📝 {article.get('title', '')}",
+        ]
+        if audit and audit.get("score") is not None:
+            tg_lines.append(f"🔍 SEO 점수: {audit.get('score')}/100")
+        tg_lines += [
             "✅ 워드프레스 초안에 저장됨 — 검토 후 발행하세요",
             link or "",
-        ])
-        notify.notify_success(STAGE, tg_msg)
+        ]
+        notify.notify_success(STAGE, "\n".join(tg_lines))
 
     except Exception as exc:
         log.exception("SEO 글 작성 실패")
