@@ -125,6 +125,7 @@ _REVIEW_SYSTEM = """\
   ],
   "overall": "총평 한두 문장"
 }
+findings는 가장 중요한 3~6개만. issue·fix는 각각 한 문장으로 간결하게.
 개선점이 없으면 findings를 빈 배열([])로 두세요.
 """
 
@@ -197,11 +198,12 @@ def _generate_article(sources):
     )
 
     # 2단계: Opus SEO 검수 (체크리스트 기반 점수 + 개선점, 재작성 X)
+    # max_tokens는 넉넉히 — 한국어 findings가 길어 잘리면 JSON 파싱이 실패한다.
     log.info("2/3 SEO 검수 중... (%s)", MODEL_REVIEW)
     audit_raw = _call(
         api, MODEL_REVIEW, _REVIEW_SYSTEM,
         f"[검수할 초안]\n{draft_raw}",
-        max_tokens=1536,
+        max_tokens=3000,
     )
     try:
         audit = _parse_json(audit_raw)
