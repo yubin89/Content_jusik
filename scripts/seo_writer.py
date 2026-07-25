@@ -19,13 +19,14 @@ scripts/seo_writer.py — 노션 D → SEO 블로그 글 작성 → 워드프레
 """
 import json
 import sys
+import urllib.parse
 from datetime import datetime
 
 import anthropic
 import pytz
 import requests
 
-from scripts.common import config, notify
+from scripts.common import config, notify, charts
 from scripts.common.logger import get_logger
 import scripts.common.notion_client as nc
 
@@ -41,6 +42,11 @@ KST = pytz.timezone("Asia/Seoul")
 RECENT_COUNT = 4            # 최근 노션 D 몇 개를 놓고 소재를 고를지
 MAX_SOURCE_LEN = 4000       # 기획 요약 1개당 최대 길이
 HTTP_TIMEOUT = 60
+
+# ---- 이미지/차트 (best-effort: 실패해도 글은 저장) ----
+IMAGE_PROVIDER = "pollinations"   # 대표 이미지 생성. 무료·키 불필요. 나중에 openai/google로 교체
+IMAGE_GEN_TIMEOUT = 120           # 이미지 생성은 오래 걸릴 수 있음
+FEATURED_SIZE = (1200, 630)       # 대표 이미지(og:image 표준 비율)
 
 
 # ---- 노션 D 읽기 ----
@@ -259,7 +265,122 @@ def _resolve_tag_ids(tag_names):
     return ids
 
 
-def _create_draft(article, date_str):
+def _upload_wp_media(image_bytes, content_type, filename, alt=None):
+    """워드프레스 미디어 업로드 → (media_id, source_url). alt 있으면 대체텍스트도 설정."""
+    ext = "png" if "png" in content_type else "jpg"
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}.{ext}"',
+        "Content-Type": content_type,
+    }
+    resp = requests.post(
+        f"{_wp_base()}/media", headers=headers, data=image_bytes,
+        auth=_wp_auth(), timeout=HTTP_TIMEOUT,
+    )
+    resp.raise_for_status()
+    media = resp.json()
+    mid = media["id"]
+    if alt:
+        try:
+            r = requests.post(
+                f"{_wp_base()}/media/{mid}", json={"alt_text": alt, "caption": alt},
+                auth=_wp_auth(), timeout=HTTP_TIMEOUT,
+            )
+            r.raise_for_status()
+        except Exception as exc:
+            log.warning("이미지 alt 설정 실패(건너뜀): %s", exc)
+    return mid, media.get("source_url", "")
+
+
+# ---- 대표 이미지(AI 컨셉) 생성 ----
+
+_IMAGE_META_SYSTEM = """\
+너는 한국 주식/투자 블로그 '대표 이미지'용 정보를 만든다.
+
+[규칙]
+- featured_prompt: '영어' 이미지 생성 프롬프트. 추상·개념적 금융 이미지만
+  (상승 곡선 실루엣, 도시 스카이라인, 밝고 현대적인 금융 무드 등).
+  글자·숫자·차트 수치·실제 기업 로고·상표·실존 인물은 절대 금지.
+  깔끔한 현대적 에디토리얼/컨셉 아트 스타일.
+- featured_alt: 그 이미지를 설명하는 '한국어' 대체텍스트(ALT).
+  글의 핵심 키워드를 자연스럽게 포함한 한 문장.
+
+[출력] 아래 JSON만. 다른 텍스트 없이:
+{"featured_prompt": "...", "featured_alt": "..."}
+"""
+
+
+def _generate_image_meta(article):
+    """대표 이미지용 영어 프롬프트 + 한국어 ALT 생성."""
+    api = _client()
+    user = f"제목: {article.get('title', '')}\n요약: {article.get('meta_description', '')}"
+    raw = _call(api, MODEL_DRAFT, _IMAGE_META_SYSTEM, user, max_tokens=400)
+    return _parse_json(raw)
+
+
+def _pollinations_image(prompt, width, height):
+    """Pollinations(무료·키 불필요)로 이미지 생성. (bytes, content_type) 반환."""
+    enc = urllib.parse.quote(prompt or "abstract finance concept", safe="")
+    url = (
+        f"https://image.pollinations.ai/prompt/{enc}"
+        f"?width={width}&height={height}&nologo=true"
+    )
+    resp = requests.get(url, timeout=IMAGE_GEN_TIMEOUT)
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "image/jpeg")
+
+
+def _generate_image(prompt, size):
+    """IMAGE_PROVIDER에 따라 이미지 생성. (bytes, content_type) 반환."""
+    w, h = size
+    if IMAGE_PROVIDER == "pollinations":
+        return _pollinations_image(prompt, w, h)
+    # 나중에 유료 고품질 전환: openai(gpt-image-1) / google(imagen) 분기 추가
+    raise ValueError(f"지원하지 않는 IMAGE_PROVIDER: {IMAGE_PROVIDER}")
+
+
+def _insert_inline_image(html, img_url, alt, caption=None):
+    """본문 첫 <h2> 앞에 이미지(+캡션)를 삽입. <h2> 없으면 맨 앞."""
+    cap = f"<figcaption>{caption}</figcaption>" if caption else ""
+    fig = f'<figure><img src="{img_url}" alt="{alt}" />{cap}</figure>'
+    idx = html.find("<h2")
+    if idx == -1:
+        return fig + html
+    return html[:idx] + fig + html[idx:]
+
+
+def _attach_visuals(article, date_str):
+    """본문 데이터 차트 + 대표 이미지를 붙인다. featured_media id 반환(없으면 None).
+    모든 이미지 작업은 best-effort — 실패해도 글 저장은 계속한다."""
+    featured_id = None
+
+    # 1) 본문: 실제 데이터 차트 (SEO/E-E-A-T 핵심)
+    try:
+        png, chart_alt = charts.supply_demand_bar_chart()
+        if png:
+            _, src = _upload_wp_media(png, "image/png", f"chart-{date_str}", alt=chart_alt)
+            if src:
+                article["content_html"] = _insert_inline_image(
+                    article.get("content_html", ""), src, chart_alt,
+                    caption="자료: 한국거래소(KRX) 기관 순매수 데이터",
+                )
+                log.info("본문 데이터 차트 삽입 완료")
+    except Exception as exc:
+        log.warning("데이터 차트 실패(생략): %s", exc)
+
+    # 2) 대표 이미지: AI 컨셉 (썸네일/CTR용)
+    try:
+        meta = _generate_image_meta(article)
+        img, ctype = _generate_image(meta.get("featured_prompt", ""), FEATURED_SIZE)
+        featured_id, _ = _upload_wp_media(
+            img, ctype, f"featured-{date_str}", alt=meta.get("featured_alt"))
+        log.info("대표 이미지 업로드 완료 (media %s)", featured_id)
+    except Exception as exc:
+        log.warning("대표 이미지 실패(생략): %s", exc)
+
+    return featured_id
+
+
+def _create_draft(article, date_str, featured_media=None):
     """워드프레스에 초안(draft) 글을 만들고 편집/미리보기 URL을 반환."""
     payload = {
         "title": article.get("title", f"주목 종목 브리핑 {date_str}"),
@@ -267,6 +388,8 @@ def _create_draft(article, date_str):
         "excerpt": article.get("meta_description", ""),
         "status": "draft",
     }
+    if featured_media:
+        payload["featured_media"] = featured_media
     tag_ids = _resolve_tag_ids(article.get("tags", []))
     if tag_ids:
         payload["tags"] = tag_ids
@@ -328,8 +451,11 @@ def main():
 
         article, audit = _generate_article(sources)
 
+        # 본문 데이터 차트 + 대표 이미지 (best-effort: 실패해도 글은 저장)
+        featured_id = _attach_visuals(article, date_str)
+
         log.info("워드프레스 초안 저장 중...")
-        link = _create_draft(article, date_str)
+        link = _create_draft(article, date_str, featured_media=featured_id)
         log.info("초안 저장 완료: %s", link)
 
         # SEO 검토 결과(점수·바꾼 부분·이유)를 노션에 기록 (실패해도 전체는 성공 처리)
@@ -344,6 +470,8 @@ def main():
         ]
         if audit and audit.get("score") is not None:
             tg_lines.append(f"🔍 SEO 점수: {audit.get('score')}/100")
+        if featured_id:
+            tg_lines.append("🖼️ 대표 이미지 포함")
         tg_lines += [
             "✅ 워드프레스 초안에 저장됨 — 검토 후 발행하세요",
             link or "",
