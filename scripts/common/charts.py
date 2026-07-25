@@ -42,10 +42,11 @@ def _set_korean_font():
     return False
 
 
-def _latest_picks_file():
+def _recent_picks_files(limit=6):
+    """최근 pykrx_picks 파일들을 최신순으로 반환(_evaluated 제외)."""
     files = sorted(glob.glob(os.path.join(_DATA_DIR, "*.json")))
     files = [f for f in files if "_evaluated" not in os.path.basename(f)]
-    return files[-1] if files else None
+    return list(reversed(files))[:limit]
 
 
 def _fmt_date(yyyymmdd):
@@ -54,34 +55,63 @@ def _fmt_date(yyyymmdd):
     return yyyymmdd
 
 
-def supply_demand_bar_chart(top_n=6):
-    """기관 순매수 상위 종목 막대차트. (png_bytes, alt_text) 반환. 데이터 없으면 (None, None)."""
-    path = _latest_picks_file()
-    if not path:
-        log.info("pykrx_picks 데이터 없음 — 차트 생략")
-        return None, None
+def _find_stock_snapshot(ticker=None, name=None, limit=6):
+    """최근 파일들에서 해당 종목이 포함된 스냅샷(dict)을 찾는다. 못 찾으면 None."""
+    ticker = (ticker or "").strip()
+    name = (name or "").strip()
+    for path in _recent_picks_files(limit):
+        try:
+            data = json.load(open(path, encoding="utf-8"))
+        except Exception:
+            continue
+        for p in data.get("picks", []):
+            if ticker and str(p.get("ticker", "")).zfill(6) == ticker.zfill(6):
+                return data
+            if name and p.get("name") == name:
+                return data
+    return None
 
-    try:
-        data = json.load(open(path, encoding="utf-8"))
-    except Exception as exc:
-        log.warning("차트 데이터 로드 실패: %s", exc)
+
+def stock_focus_chart(ticker=None, name=None, top_n=6):
+    """글의 대표 종목이 포함된 '기관 순매수 상위' 막대차트(해당 종목 강조).
+    (png_bytes, alt_text) 반환. 대상 종목이 최근 수급 데이터에 없으면 (None, None)."""
+    data = _find_stock_snapshot(ticker, name)
+    if not data:
+        log.info("차트 대상 종목 데이터 없음 — 차트 생략 (ticker=%s, name=%s)", ticker, name)
         return None, None
 
     picks = data.get("picks", [])
-    if not picks:
-        return None, None
+    picks = sorted(picks, key=lambda p: p.get("inst_sum", 0) or 0, reverse=True)
+    # 대상 종목이 top_n 밖이면 강제로 포함
+    def _is_target(p):
+        return (
+            (ticker and str(p.get("ticker", "")).zfill(6) == (ticker or "").zfill(6))
+            or (name and p.get("name") == name)
+        )
 
-    picks = sorted(picks, key=lambda p: p.get("inst_sum", 0) or 0, reverse=True)[:top_n]
-    names = [p.get("name") or p.get("ticker", "") for p in picks]
-    vals = [(p.get("inst_sum", 0) or 0) / 1e8 for p in picks]  # 억원 단위
+    top = picks[:top_n]
+    if not any(_is_target(p) for p in top):
+        target = next((p for p in picks if _is_target(p)), None)
+        if target:
+            top = top[: top_n - 1] + [target]
+            top = sorted(top, key=lambda p: p.get("inst_sum", 0) or 0, reverse=True)
+
+    names = [p.get("name") or p.get("ticker", "") for p in top]
+    vals = [(p.get("inst_sum", 0) or 0) / 1e8 for p in top]  # 억원
+    colors = ["#dc2626" if _is_target(p) else "#93c5fd" for p in top]  # 대상=빨강 강조
     date_str = _fmt_date(str(data.get("date", "")))
+    target_name = name or next(
+        (p.get("name") for p in top if _is_target(p)), ""
+    )
 
     _set_korean_font()
     fig, ax = plt.subplots(figsize=(8, 4.5), dpi=130)
-    # 큰 값이 위로 오게 역순 배치
-    ax.barh(names[::-1], vals[::-1], color="#2563eb")
+    ax.barh(names[::-1], vals[::-1], color=colors[::-1])
     ax.set_xlabel("기관 순매수 (억원)")
-    ax.set_title(f"{date_str} 기관 순매수 상위 종목", fontsize=13, fontweight="bold")
+    ax.set_title(
+        f"{date_str} 기관 순매수 상위 종목 (강조: {target_name})",
+        fontsize=13, fontweight="bold",
+    )
     for i, v in enumerate(vals[::-1]):
         ax.text(v, i, f" {v:,.0f}", va="center", fontsize=9)
     ax.spines["top"].set_visible(False)
@@ -93,7 +123,7 @@ def supply_demand_bar_chart(top_n=6):
     plt.close(fig)
 
     alt = (
-        f"{date_str} 기관 순매수 상위 종목 막대그래프. "
+        f"{date_str} 기관 순매수 상위 종목 막대그래프({target_name} 강조). "
         + ", ".join(f"{n} {v:,.0f}억원" for n, v in zip(names, vals))
     )
     return buf.getvalue(), alt
