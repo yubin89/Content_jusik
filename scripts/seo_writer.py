@@ -104,6 +104,8 @@ _DRAFT_SYSTEM = """\
   "title": "제목",
   "meta_description": "메타설명",
   "tags": ["태그1", "태그2"],
+  "primary_name": "이 글이 집중하는 대표 종목명 (예: 메리츠금융지주)",
+  "primary_ticker": "그 종목의 6자리 코드 (모르면 빈 문자열)",
   "content_html": "<h2>...</h2><p>...</p>"
 }
 """
@@ -150,6 +152,8 @@ _REVISE_SYSTEM = """\
   "title": "제목",
   "meta_description": "메타설명",
   "tags": ["태그1", "태그2"],
+  "primary_name": "이 글이 집중하는 대표 종목명",
+  "primary_ticker": "그 종목의 6자리 코드 (모르면 빈 문자열)",
   "content_html": "<h2>...</h2><p>...</p>"
 }
 """
@@ -353,9 +357,11 @@ def _attach_visuals(article, date_str):
     모든 이미지 작업은 best-effort — 실패해도 글 저장은 계속한다."""
     featured_id = None
 
-    # 1) 본문: 실제 데이터 차트 (SEO/E-E-A-T 핵심)
+    # 1) 본문: 글의 대표 종목과 일치하는 데이터 차트 (없으면 생략)
     try:
-        png, chart_alt = charts.supply_demand_bar_chart()
+        png, chart_alt = charts.stock_focus_chart(
+            ticker=article.get("primary_ticker"), name=article.get("primary_name"),
+        )
         if png:
             _, src = _upload_wp_media(png, "image/png", f"chart-{date_str}", alt=chart_alt)
             if src:
