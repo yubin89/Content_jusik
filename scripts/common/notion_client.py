@@ -151,7 +151,7 @@ def query_latest_page(database_id):
     }
 
     def _call():
-        resp = _req.post(url, headers=_http_headers(), json=payload, timeout=30)
+        resp = _req.post(url, headers=_http_headers(), json=payload, timeout=60)
         resp.raise_for_status()
         return resp.json()
 
@@ -169,7 +169,7 @@ def query_recent_pages(database_id, count=5):
     }
 
     def _call():
-        resp = _req.post(url, headers=_http_headers(), json=payload, timeout=30)
+        resp = _req.post(url, headers=_http_headers(), json=payload, timeout=60)
         resp.raise_for_status()
         return resp.json()
 
@@ -188,7 +188,7 @@ def read_page_text(page_id):
             params["start_cursor"] = cursor
 
         def _call(u=url, p=params):
-            resp = _req.get(u, headers=_http_headers(), params=p, timeout=30)
+            resp = _req.get(u, headers=_http_headers(), params=p, timeout=60)
             resp.raise_for_status()
             return resp.json()
 
