@@ -22,12 +22,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Korean font (차트 라벨용)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y fonts-nanum
-          rm -rf ~/.cache/matplotlib
-
       - name: Install dependencies
         run: pip install -r requirements.txt
 
@@ -37,6 +31,7 @@ jobs:
           NOTION_DB_D: ${{ secrets.NOTION_DB_D }}
           NOTION_DB_SEO: ${{ secrets.NOTION_DB_SEO }}   # SEO 검토 기록용(선택). 없으면 기록만 생략
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}   # 본문 실사 사진용(선택). 없으면 실사만 생략
           WP_URL: ${{ secrets.WP_URL }}
           WP_USER: ${{ secrets.WP_USER }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}

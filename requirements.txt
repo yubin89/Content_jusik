@@ -3,3 +3,4 @@ requests>=2.31
 notion-client>=2.2,<3.0
 pykrx>=1.2.8        # Step 2: 한국거래소 수급 데이터 (KRX 회원 로그인 KRX_ID/KRX_PW 필요)
 anthropic>=0.49    # Step 4·5: Claude API (심리분석/종합분석)
+Pillow>=10.0       # Step 6: 수급 데이터 카드 이미지 렌더링

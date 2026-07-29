@@ -26,7 +26,7 @@ import anthropic
 import pytz
 import requests
 
-from scripts.common import config, notify, charts
+from scripts.common import config, notify, cards, stock_photo
 from scripts.common.logger import get_logger
 import scripts.common.notion_client as nc
 
@@ -298,26 +298,29 @@ def _upload_wp_media(image_bytes, content_type, filename, alt=None):
 # ---- 대표 이미지(AI 컨셉) 생성 ----
 
 _IMAGE_META_SYSTEM = """\
-너는 한국 주식/투자 블로그 '대표 이미지'용 정보를 만든다.
+너는 한국 주식/투자 블로그 이미지용 정보를 만든다.
 
 [규칙]
-- featured_prompt: '영어' 이미지 생성 프롬프트. 추상·개념적 금융 이미지만
+- featured_prompt: '영어' 대표 이미지 생성 프롬프트. 추상·개념적 금융 이미지만
   (상승 곡선 실루엣, 도시 스카이라인, 밝고 현대적인 금융 무드 등).
   글자·숫자·차트 수치·실제 기업 로고·상표·실존 인물은 절대 금지.
   깔끔한 현대적 에디토리얼/컨셉 아트 스타일.
-- featured_alt: 그 이미지를 설명하는 '한국어' 대체텍스트(ALT).
-  글의 핵심 키워드를 자연스럽게 포함한 한 문장.
+- featured_alt: 대표 이미지의 '한국어' 대체텍스트(ALT). 핵심 키워드 포함 한 문장.
+- photo_query: 본문에 넣을 '실사 스톡 사진'을 Unsplash에서 검색할 '영어' 키워드
+  1~3단어. 글 주제와 관련된 보편적 장면(예: "semiconductor factory",
+  "seoul financial district", "stock trading floor"). 특정 회사명·로고 금지.
+- photo_alt: 그 실사 사진의 '한국어' 대체텍스트(ALT). 한 문장.
 
 [출력] 아래 JSON만. 다른 텍스트 없이:
-{"featured_prompt": "...", "featured_alt": "..."}
+{"featured_prompt": "...", "featured_alt": "...", "photo_query": "...", "photo_alt": "..."}
 """
 
 
 def _generate_image_meta(article):
-    """대표 이미지용 영어 프롬프트 + 한국어 ALT 생성."""
+    """대표 이미지 프롬프트/ALT + 실사 사진 검색어/ALT 생성."""
     api = _client()
     user = f"제목: {article.get('title', '')}\n요약: {article.get('meta_description', '')}"
-    raw = _call(api, MODEL_DRAFT, _IMAGE_META_SYSTEM, user, max_tokens=400)
+    raw = _call(api, MODEL_DRAFT, _IMAGE_META_SYSTEM, user, max_tokens=500)
     return _parse_json(raw)
 
 
@@ -342,40 +345,67 @@ def _generate_image(prompt, size):
     raise ValueError(f"지원하지 않는 IMAGE_PROVIDER: {IMAGE_PROVIDER}")
 
 
-def _insert_inline_image(html, img_url, alt, caption=None):
-    """본문 첫 <h2> 앞에 이미지(+캡션)를 삽입. <h2> 없으면 맨 앞."""
+def _insert_inline_image(html, img_url, alt, caption=None, before_h2=0):
+    """본문의 (before_h2)번째 <h2> 앞에 이미지(+캡션)를 삽입.
+    해당 <h2>가 없으면 맨 뒤에 붙인다(이미지들이 겹치지 않게 위치를 분산)."""
     cap = f"<figcaption>{caption}</figcaption>" if caption else ""
     fig = f'<figure><img src="{img_url}" alt="{alt}" />{cap}</figure>'
-    idx = html.find("<h2")
+    idx, start = -1, 0
+    for _ in range(before_h2 + 1):
+        idx = html.find("<h2", start)
+        if idx == -1:
+            break
+        start = idx + 3
     if idx == -1:
-        return fig + html
+        return html + fig
     return html[:idx] + fig + html[idx:]
 
 
 def _attach_visuals(article, date_str):
-    """본문 데이터 차트 + 대표 이미지를 붙인다. featured_media id 반환(없으면 None).
-    모든 이미지 작업은 best-effort — 실패해도 글 저장은 계속한다."""
+    """본문 데이터 카드 + 실사 사진 + 대표(AI 컨셉) 이미지를 붙인다.
+    featured_media id 반환(없으면 None). 각 이미지는 best-effort — 실패해도 글 저장은 계속."""
     featured_id = None
-
-    # 1) 본문: 글의 대표 종목과 일치하는 데이터 차트 (없으면 생략)
+    meta = {}
     try:
-        png, chart_alt = charts.stock_focus_chart(
+        meta = _generate_image_meta(article)
+    except Exception as exc:
+        log.warning("이미지 메타 생성 실패(대표·실사 생략): %s", exc)
+
+    # 1) 본문①: 글의 대표 종목 수급 데이터 카드 (없으면 생략)
+    try:
+        png, card_alt = cards.supply_demand_card(
             ticker=article.get("primary_ticker"), name=article.get("primary_name"),
         )
         if png:
-            _, src = _upload_wp_media(png, "image/png", f"chart-{date_str}", alt=chart_alt)
+            _, src = _upload_wp_media(png, "image/png", f"card-{date_str}", alt=card_alt)
             if src:
                 article["content_html"] = _insert_inline_image(
-                    article.get("content_html", ""), src, chart_alt,
-                    caption="자료: 한국거래소(KRX) 기관 순매수 데이터",
+                    article.get("content_html", ""), src, card_alt,
+                    caption="자료: 한국거래소(KRX) 기관 순매수 데이터", before_h2=0,
                 )
-                log.info("본문 데이터 차트 삽입 완료")
+                log.info("본문 데이터 카드 삽입 완료")
     except Exception as exc:
-        log.warning("데이터 차트 실패(생략): %s", exc)
+        log.warning("데이터 카드 실패(생략): %s", exc)
 
-    # 2) 대표 이미지: AI 컨셉 (썸네일/CTR용)
+    # 2) 본문②: 콘텐츠 관련 실사 사진 (Unsplash, 출처 표기)
     try:
-        meta = _generate_image_meta(article)
+        photo = stock_photo.search_photo(meta.get("photo_query"))
+        if photo:
+            p_alt = meta.get("photo_alt") or article.get("title", "")
+            _, src = _upload_wp_media(
+                photo["bytes"], photo["content_type"], f"photo-{date_str}", alt=p_alt)
+            if src:
+                credit = f'사진: {photo["credit_name"]} / Unsplash'
+                article["content_html"] = _insert_inline_image(
+                    article.get("content_html", ""), src, p_alt,
+                    caption=credit, before_h2=2,
+                )
+                log.info("본문 실사 사진 삽입 완료")
+    except Exception as exc:
+        log.warning("실사 사진 실패(생략): %s", exc)
+
+    # 3) 대표 이미지: AI 컨셉 (썸네일/CTR용)
+    try:
         img, ctype = _generate_image(meta.get("featured_prompt", ""), FEATURED_SIZE)
         featured_id, _ = _upload_wp_media(
             img, ctype, f"featured-{date_str}", alt=meta.get("featured_alt"))
