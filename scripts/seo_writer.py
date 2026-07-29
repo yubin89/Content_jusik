@@ -48,6 +48,18 @@ IMAGE_PROVIDER = "pollinations"   # 대표 이미지 생성. 무료·키 불필�
 IMAGE_GEN_TIMEOUT = 120           # 이미지 생성은 오래 걸릴 수 있음
 FEATURED_SIZE = (1200, 630)       # 대표 이미지(og:image 표준 비율)
 
+# 본문 표(.ms-tbl)·FAQ(.ms-faq) 스타일 — 글 상단에 주입(캐롯 블로그 느낌)
+_STYLE_BLOCK = """<style>
+.ms-tbl{width:100%;border-collapse:collapse;margin:24px 0;font-size:15px}
+.ms-tbl th{background:#f3f0ff;color:#6d28d9;text-align:left;padding:13px 16px;font-weight:700}
+.ms-tbl td{padding:13px 16px;border-top:1px solid #eee}
+.ms-tbl td:first-child{color:#ea580c;font-weight:700}
+.ms-faq{margin:28px 0}
+.ms-faq .ms-q{border-left:4px solid #2563eb;padding:6px 14px;margin-top:18px;font-weight:700;color:#1d4ed8}
+.ms-faq .ms-a{padding:4px 14px 4px 18px;color:#374151;line-height:1.7}
+</style>
+"""
+
 
 # ---- 노션 D 읽기 ----
 
@@ -92,7 +104,15 @@ _DRAFT_SYSTEM = """\
        - 쉽고 명확하게 쓰되 유치한 비유나 과잉 설명은 금지
        - 주식 기초(주식이 뭔지 등)는 설명하지 말 것
        - 정말 생소한 용어(특이한 공시 유형 등)만 한 줄로 짧게 풀이
-[분량] 본문 1500~2000자
+[분량] 본문 1500~2000자(표·FAQ 제외)
+
+[필수 구성 요소] (SEO·AI인용에 강함)
+- 본문 중간에 비교/요약 표 1개(HTML). 첫 열은 항목명, 3~4행:
+  <table class="ms-tbl"><thead><tr><th>항목</th><th>내용</th><th>확인 포인트</th></tr></thead><tbody><tr><td>...</td><td>...</td><td>...</td></tr></tbody></table>
+  글 주제에 맞는 핵심 정보(확인 포인트/종목 비교/일정 등)로 채운다.
+- 글 끝(투자 유의 문구 바로 앞)에 FAQ 3~5개(HTML):
+  <div class="ms-faq"><p class="ms-q">Q. 질문</p><p class="ms-a">A. 답변</p> ...반복... </div>
+  질문은 독자가 실제로 검색할 법한 궁금증으로.
 [구조] <h2> 소제목 3~5개, <p> 문단, 필요 시 <ul><li>
 [SEO] 제목 30~60자(핵심 키워드 앞쪽), 메타설명 70~155자, 도입부에 키워드 자연 포함
 [주의] 과장·단정 표현 금지("무조건 오른다" 류 X).
@@ -143,8 +163,10 @@ _REVISE_SYSTEM = """\
 가이드의 지적을 최대한 반영하되, 원래의 독자·분량·구조·SEO 규칙은 그대로 유지하세요.
 
 [독자] 입문~초중급 개인투자자 — 쉽고 명확하되 유치하지 않게, 기초 용어는 설명 생략
-[분량] 본문 1500~2000자
+[분량] 본문 1500~2000자(표·FAQ 제외)
 [구조] <h2> 소제목 3~5개
+[필수 구성] 본문 중간 비교/요약 표 1개(<table class="ms-tbl">…, 첫 열=항목명, 3~4행) +
+       글 끝 FAQ 3~5개(<div class="ms-faq"><p class="ms-q">Q. …</p><p class="ms-a">A. …</p>…</div>)
 [주의] 과장·단정 금지, 마지막에 투자 유의 문구 문단 유지
 
 [응답 형식] 반드시 아래 JSON만 출력. 다른 텍스트 없이:
@@ -204,7 +226,7 @@ def _generate_article(sources):
     draft_raw = _call(
         api, MODEL_DRAFT, _DRAFT_SYSTEM,
         f"[최근 기획 요약들]\n{src_block}\n\n위에서 가장 좋은 소재 하나를 골라 글을 쓰세요.",
-        max_tokens=4096,
+        max_tokens=8000,   # 본문+표+FAQ가 JSON에 담겨 길어짐 → 잘림 방지
     )
 
     # 2단계: Opus SEO 검수 (체크리스트 기반 점수 + 개선점, 재작성 X)
@@ -229,7 +251,7 @@ def _generate_article(sources):
         api, MODEL_DRAFT, _REVISE_SYSTEM,
         f"[1차 초안]\n{draft_raw}\n\n[편집장 개선 가이드]\n{guide}\n\n"
         "위를 반영해 최종 글을 완성하세요.",
-        max_tokens=4096,
+        max_tokens=8000,   # 본문+표+FAQ 포함 → 잘림 방지
     )
     return _parse_json(final_raw), audit
 
@@ -420,7 +442,7 @@ def _create_draft(article, date_str, featured_media=None):
     """워드프레스에 초안(draft) 글을 만들고 편집/미리보기 URL을 반환."""
     payload = {
         "title": article.get("title", f"주목 종목 브리핑 {date_str}"),
-        "content": article.get("content_html", ""),
+        "content": _STYLE_BLOCK + article.get("content_html", ""),
         "excerpt": article.get("meta_description", ""),
         "status": "draft",
     }
