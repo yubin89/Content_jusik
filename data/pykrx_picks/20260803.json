@@ -1,0 +1,25 @@
+{
+  "date": "20260803",
+  "picks": [
+    {
+      "ticker": "138040",
+      "name": "메리츠금융지주",
+      "entry_close": 120300.0,
+      "score": 1,
+      "rs": null,
+      "streak": 25,
+      "inst_sum": 207645799400.0,
+      "badges": []
+    },
+    {
+      "ticker": "090430",
+      "name": "아모레퍼시픽",
+      "entry_close": 129800.0,
+      "score": 1,
+      "rs": null,
+      "streak": 7,
+      "inst_sum": 83225978100.0,
+      "badges": []
+    }
+  ]
+}
