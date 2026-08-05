@@ -1,0 +1,95 @@
+{
+  "date": "20260805",
+  "picks": [
+    {
+      "ticker": "138040",
+      "name": "메리츠금융지주",
+      "entry_close": 120400.0,
+      "score": 1,
+      "rs": null,
+      "streak": 25,
+      "inst_sum": 191073949700.0,
+      "badges": []
+    },
+    {
+      "ticker": "017670",
+      "name": "SK텔레콤",
+      "entry_close": 93000.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 70938238750.0,
+      "badges": []
+    },
+    {
+      "ticker": "475150",
+      "name": "SK이터닉스",
+      "entry_close": 57700.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 51685360400.0,
+      "badges": []
+    },
+    {
+      "ticker": "000150",
+      "name": "두산",
+      "entry_close": 1260000.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 45583391500.0,
+      "badges": []
+    },
+    {
+      "ticker": "018260",
+      "name": "삼성에스디에스",
+      "entry_close": 230500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 38128268000.0,
+      "badges": []
+    },
+    {
+      "ticker": "058610",
+      "name": "에스피지",
+      "entry_close": 108900.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 31131787550.0,
+      "badges": []
+    },
+    {
+      "ticker": "316140",
+      "name": "우리금융지주",
+      "entry_close": 33350.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 18925583075.0,
+      "badges": []
+    },
+    {
+      "ticker": "098460",
+      "name": "고영",
+      "entry_close": 31000.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 17147182725.0,
+      "badges": []
+    },
+    {
+      "ticker": "009420",
+      "name": "한올바이오파마",
+      "entry_close": 53100.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 8592614700.0,
+      "badges": []
+    }
+  ]
+}
