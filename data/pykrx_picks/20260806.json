@@ -1,0 +1,87 @@
+{
+  "date": "20260806",
+  "picks": [
+    {
+      "ticker": "138040",
+      "name": "메리츠금융지주",
+      "entry_close": 125700.0,
+      "score": 2,
+      "rs": null,
+      "streak": 25,
+      "inst_sum": 203750653250.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "010060",
+      "name": "OCI홀딩스",
+      "entry_close": 244000.0,
+      "score": 1,
+      "rs": null,
+      "streak": 12,
+      "inst_sum": 97788514550.0,
+      "badges": []
+    },
+    {
+      "ticker": "017670",
+      "name": "SK텔레콤",
+      "entry_close": 91100.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 94814498550.0,
+      "badges": []
+    },
+    {
+      "ticker": "010120",
+      "name": "LS ELECTRIC",
+      "entry_close": 202500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 5,
+      "inst_sum": 52715368900.0,
+      "badges": []
+    },
+    {
+      "ticker": "018260",
+      "name": "삼성에스디에스",
+      "entry_close": 232500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 51245519250.0,
+      "badges": []
+    },
+    {
+      "ticker": "006260",
+      "name": "LS",
+      "entry_close": 328500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 5,
+      "inst_sum": 43645964500.0,
+      "badges": []
+    },
+    {
+      "ticker": "316140",
+      "name": "우리금융지주",
+      "entry_close": 33500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 36175549900.0,
+      "badges": []
+    },
+    {
+      "ticker": "028050",
+      "name": "삼성E&A",
+      "entry_close": 49450.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 29303754750.0,
+      "badges": []
+    }
+  ]
+}
