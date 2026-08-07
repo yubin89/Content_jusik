@@ -1,0 +1,130 @@
+{
+  "date": "20260807",
+  "picks": [
+    {
+      "ticker": "138040",
+      "name": "메리츠금융지주",
+      "entry_close": 126300.0,
+      "score": 3,
+      "rs": null,
+      "streak": 25,
+      "inst_sum": 200982974600.0,
+      "badges": [
+        "매물대가벼움",
+        "수축"
+      ]
+    },
+    {
+      "ticker": "316140",
+      "name": "우리금융지주",
+      "entry_close": 34800.0,
+      "score": 2,
+      "rs": null,
+      "streak": 5,
+      "inst_sum": 54973550350.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "009150",
+      "name": "삼성전기",
+      "entry_close": 1278000.0,
+      "score": 1,
+      "rs": null,
+      "streak": 6,
+      "inst_sum": 335927918000.0,
+      "badges": []
+    },
+    {
+      "ticker": "068270",
+      "name": "셀트리온",
+      "entry_close": 199300.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 73511230700.0,
+      "badges": []
+    },
+    {
+      "ticker": "018260",
+      "name": "삼성에스디에스",
+      "entry_close": 221500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 5,
+      "inst_sum": 65185697500.0,
+      "badges": []
+    },
+    {
+      "ticker": "010120",
+      "name": "LS ELECTRIC",
+      "entry_close": 201000.0,
+      "score": 1,
+      "rs": null,
+      "streak": 6,
+      "inst_sum": 55795947750.0,
+      "badges": []
+    },
+    {
+      "ticker": "006260",
+      "name": "LS",
+      "entry_close": 317000.0,
+      "score": 1,
+      "rs": null,
+      "streak": 6,
+      "inst_sum": 50690574250.0,
+      "badges": []
+    },
+    {
+      "ticker": "028050",
+      "name": "삼성E&A",
+      "entry_close": 48100.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 35820457925.0,
+      "badges": []
+    },
+    {
+      "ticker": "267270",
+      "name": "HD건설기계",
+      "entry_close": 138100.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 26202462400.0,
+      "badges": []
+    },
+    {
+      "ticker": "000720",
+      "name": "현대건설",
+      "entry_close": 109900.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 15474297750.0,
+      "badges": []
+    },
+    {
+      "ticker": "003550",
+      "name": "LG",
+      "entry_close": 108100.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 9082400050.0,
+      "badges": []
+    },
+    {
+      "ticker": "180640",
+      "name": "한진칼",
+      "entry_close": 118900.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 5797600300.0,
+      "badges": []
+    }
+  ]
+}
