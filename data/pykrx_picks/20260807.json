@@ -37,13 +37,23 @@
       "badges": []
     },
     {
+      "ticker": "006360",
+      "name": "GS건설",
+      "entry_close": 31650.0,
+      "score": 1,
+      "rs": null,
+      "streak": 7,
+      "inst_sum": 92928224325.0,
+      "badges": []
+    },
+    {
       "ticker": "068270",
       "name": "셀트리온",
       "entry_close": 199300.0,
       "score": 1,
       "rs": null,
       "streak": 3,
-      "inst_sum": 73511230700.0,
+      "inst_sum": 68698135700.0,
       "badges": []
     },
     {
@@ -53,7 +63,27 @@
       "score": 1,
       "rs": null,
       "streak": 5,
-      "inst_sum": 65185697500.0,
+      "inst_sum": 65118061500.0,
+      "badges": []
+    },
+    {
+      "ticker": "192820",
+      "name": "코스맥스",
+      "entry_close": 205500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 12,
+      "inst_sum": 60890417850.0,
+      "badges": []
+    },
+    {
+      "ticker": "008930",
+      "name": "한미사이언스",
+      "entry_close": 44650.0,
+      "score": 1,
+      "rs": null,
+      "streak": 25,
+      "inst_sum": 56232196975.0,
       "badges": []
     },
     {
@@ -97,6 +127,16 @@
       "badges": []
     },
     {
+      "ticker": "139130",
+      "name": "iM금융지주",
+      "entry_close": 17870.0,
+      "score": 1,
+      "rs": null,
+      "streak": 12,
+      "inst_sum": 18557926325.0,
+      "badges": []
+    },
+    {
       "ticker": "000720",
       "name": "현대건설",
       "entry_close": 109900.0,
@@ -124,6 +164,16 @@
       "rs": null,
       "streak": 3,
       "inst_sum": 5797600300.0,
+      "badges": []
+    },
+    {
+      "ticker": "004800",
+      "name": "효성",
+      "entry_close": 158100.0,
+      "score": 1,
+      "rs": null,
+      "streak": 7,
+      "inst_sum": 3853197100.0,
       "badges": []
     }
   ]
