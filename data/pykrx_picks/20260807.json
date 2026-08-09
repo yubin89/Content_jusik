@@ -37,16 +37,6 @@
       "badges": []
     },
     {
-      "ticker": "006360",
-      "name": "GS건설",
-      "entry_close": 31650.0,
-      "score": 1,
-      "rs": null,
-      "streak": 7,
-      "inst_sum": 92928224325.0,
-      "badges": []
-    },
-    {
       "ticker": "068270",
       "name": "셀트리온",
       "entry_close": 199300.0,
@@ -64,16 +54,6 @@
       "rs": null,
       "streak": 5,
       "inst_sum": 65118061500.0,
-      "badges": []
-    },
-    {
-      "ticker": "192820",
-      "name": "코스맥스",
-      "entry_close": 205500.0,
-      "score": 1,
-      "rs": null,
-      "streak": 12,
-      "inst_sum": 60890417850.0,
       "badges": []
     },
     {
@@ -164,16 +144,6 @@
       "rs": null,
       "streak": 3,
       "inst_sum": 5797600300.0,
-      "badges": []
-    },
-    {
-      "ticker": "004800",
-      "name": "효성",
-      "entry_close": 158100.0,
-      "score": 1,
-      "rs": null,
-      "streak": 7,
-      "inst_sum": 3853197100.0,
       "badges": []
     }
   ]
