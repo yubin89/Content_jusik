@@ -1,0 +1,109 @@
+{
+  "date": "20260810",
+  "picks": [
+    {
+      "ticker": "138040",
+      "name": "메리츠금융지주",
+      "entry_close": 123500.0,
+      "score": 2,
+      "rs": null,
+      "streak": 25,
+      "inst_sum": 191398183950.0,
+      "badges": [
+        "수축"
+      ]
+    },
+    {
+      "ticker": "011200",
+      "name": "HMM",
+      "entry_close": 21450.0,
+      "score": 2,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 14494555725.0,
+      "badges": [
+        "수축"
+      ]
+    },
+    {
+      "ticker": "068270",
+      "name": "셀트리온",
+      "entry_close": 201000.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 69860990500.0,
+      "badges": []
+    },
+    {
+      "ticker": "316140",
+      "name": "우리금융지주",
+      "entry_close": 33350.0,
+      "score": 1,
+      "rs": null,
+      "streak": 6,
+      "inst_sum": 59315709325.0,
+      "badges": []
+    },
+    {
+      "ticker": "006260",
+      "name": "LS",
+      "entry_close": 330000.0,
+      "score": 1,
+      "rs": null,
+      "streak": 7,
+      "inst_sum": 57883131500.0,
+      "badges": []
+    },
+    {
+      "ticker": "028050",
+      "name": "삼성E&A",
+      "entry_close": 48800.0,
+      "score": 1,
+      "rs": null,
+      "streak": 5,
+      "inst_sum": 44117010625.0,
+      "badges": []
+    },
+    {
+      "ticker": "267270",
+      "name": "HD건설기계",
+      "entry_close": 143800.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 29231291850.0,
+      "badges": []
+    },
+    {
+      "ticker": "005830",
+      "name": "DB손해보험",
+      "entry_close": 162300.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 23774618700.0,
+      "badges": []
+    },
+    {
+      "ticker": "003550",
+      "name": "LG",
+      "entry_close": 107600.0,
+      "score": 1,
+      "rs": null,
+      "streak": 5,
+      "inst_sum": 10850293450.0,
+      "badges": []
+    },
+    {
+      "ticker": "175330",
+      "name": "JB금융지주",
+      "entry_close": 28650.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 7031609400.0,
+      "badges": []
+    }
+  ]
+}
