@@ -1,0 +1,111 @@
+{
+  "date": "20260811",
+  "picks": [
+    {
+      "ticker": "138040",
+      "name": "메리츠금융지주",
+      "entry_close": 123800.0,
+      "score": 2,
+      "rs": null,
+      "streak": 25,
+      "inst_sum": 196653522350.0,
+      "badges": [
+        "수축"
+      ]
+    },
+    {
+      "ticker": "316140",
+      "name": "우리금융지주",
+      "entry_close": 33800.0,
+      "score": 2,
+      "rs": null,
+      "streak": 7,
+      "inst_sum": 63037925950.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "000810",
+      "name": "삼성화재",
+      "entry_close": 641000.0,
+      "score": 2,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 26521787000.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "010060",
+      "name": "OCI홀딩스",
+      "entry_close": 273500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 15,
+      "inst_sum": 123799254300.0,
+      "badges": []
+    },
+    {
+      "ticker": "006400",
+      "name": "삼성SDI",
+      "entry_close": 459500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 106645607750.0,
+      "badges": []
+    },
+    {
+      "ticker": "096770",
+      "name": "SK이노베이션",
+      "entry_close": 124100.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 73568534500.0,
+      "badges": []
+    },
+    {
+      "ticker": "207940",
+      "name": "삼성바이오로직스",
+      "entry_close": 1609000.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 48444755500.0,
+      "badges": []
+    },
+    {
+      "ticker": "267270",
+      "name": "HD건설기계",
+      "entry_close": 142000.0,
+      "score": 1,
+      "rs": null,
+      "streak": 5,
+      "inst_sum": 36681907750.0,
+      "badges": []
+    },
+    {
+      "ticker": "005830",
+      "name": "DB손해보험",
+      "entry_close": 164500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 27961966800.0,
+      "badges": []
+    },
+    {
+      "ticker": "175330",
+      "name": "JB금융지주",
+      "entry_close": 28750.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 8140105600.0,
+      "badges": []
+    }
+  ]
+}
