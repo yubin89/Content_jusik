@@ -18,6 +18,8 @@ scripts/seo_writer.py — 노션 D → SEO 블로그 글 작성 → 워드프레
   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
   NOTION_DB_SEO (선택) — 있으면 SEO 검토 결과(점수·바꾼 부분·이유)를 여기에 기록
   UNSPLASH_ACCESS_KEY (선택) — 있으면 본문에 실사 사진도 삽입
+  NAVER_CLIENT_ID, NAVER_CLIENT_SECRET (선택) — 있으면 검색수요 채점에 실제
+    네이버 검색 트렌드 데이터를 사용(없으면 Claude가 정성적으로 판단)
 """
 import sys
 import urllib.parse
@@ -26,7 +28,7 @@ from datetime import datetime
 import pytz
 import requests
 
-from scripts.common import ai, config, notify, cards, history, stock_photo, wp_publish
+from scripts.common import ai, config, notify, cards, history, naver_trends, stock_photo, wp_publish
 from scripts.common.logger import get_logger
 import scripts.common.notion_client as nc
 
@@ -68,6 +70,49 @@ def _format_sources(sources):
     return "\n\n".join(blocks)
 
 
+# ---- 0단계: 후보 종목 추출 + 검색트렌드 사전 채점 ----
+
+_EXTRACT_SYSTEM = """\
+아래 콘텐츠 기획 요약들에서 언급된 종목명을 모두 뽑아라.
+중복 없이, 최대 8개까지만. 티커(6자리 코드)를 알 수 있으면 포함.
+
+[출력] 아래 JSON 배열만. 다른 텍스트 없이:
+[{"name": "종목명", "ticker": "6자리 코드 또는 빈 문자열"}]
+"""
+
+
+def _extract_candidates(sources):
+    """소스에서 후보 종목명·티커 목록 추출(저렴한 단일 호출, 도구 없음). 실패 시 빈 리스트."""
+    try:
+        api = ai.client()
+        raw = ai.call(api, ai.MODEL_DRAFT, _EXTRACT_SYSTEM, _format_sources(sources), max_tokens=500)
+        candidates = ai.parse_json(raw)
+        return candidates if isinstance(candidates, list) else []
+    except Exception as exc:
+        log.warning("후보 종목 추출 실패(검색트렌드 채점 생략): %s", exc)
+        return []
+
+
+def _format_trend_scores(candidates):
+    """후보별 네이버 검색트렌드 점수를 프롬프트용 텍스트로. API 미설정/실패 시 안내문."""
+    if not candidates:
+        return "(후보 없음)"
+    if not naver_trends.configured():
+        return "(네이버 검색트렌드 미설정 — 검색수요는 당신이 종목 인지도로 직접 판단하세요)"
+
+    lines = []
+    for c in candidates:
+        name = c.get("name", "")
+        if not name:
+            continue
+        score, detail = naver_trends.trend_score(name)
+        if score is None:
+            lines.append(f"- {name}: (조회 실패 — 직접 판단)")
+        else:
+            lines.append(f"- {name}: {score}점 — {detail}")
+    return "\n".join(lines) if lines else "(조회된 후보 없음)"
+
+
 # ---- Claude 3단계 파이프라인 ----
 
 _DRAFT_SYSTEM = """\
@@ -75,21 +120,30 @@ _DRAFT_SYSTEM = """\
 아래는 최근 며칠간의 콘텐츠 기획 요약들입니다. 아래 [소재 선택 기준]에 따라
 가장 좋은 종목/주제 '하나'만 골라, 그 주제에 집중한 글 한 편을 작성하세요.
 
-[소재 선택 기준] (우선순위 순)
-1. 최근 중복 회피 — [최근 다룬 종목] 목록에 있는 종목은 후순위로 미루세요.
-   신호가 강해도 최근에 이미 썼다면 다른 종목을 우선 고려하세요(콘텐츠 다양성 확보).
-2. 뉴스 소재 유무(가산점) — 웹검색으로 그 종목의 최근 뉴스·이슈를 확인해,
-   실적·계약·신사업·업계 동향 등 '이야기할 거리'가 있는 종목을 우대하세요.
-   수급 데이터만 있고 딱히 다룰 뉴스가 없는 종목보다 낫습니다.
-3. 신호 강도 — 소셜·공시·수급 중 2곳 이상에 겹쳐 등장한 종목
-4. 시의성 — 지금 다루기 좋은 따끈한 이슈인가
-5. 스토리 — 왜 움직이는지 설명할 근거(수주·실적·테마 등)가 명확한가
-6. 검색 수요 — 사람들이 검색해볼 법한 종목/테마인가
+[소재 채점표] 아래 5개 항목을 각 0~2점으로 직접 채점해 총점(0~10)이 가장 높은
+종목/주제 '하나'를 고르세요. 숫자는 참고용 우선순위가 아니라 실제로 채점하고
+결과를 응답 JSON의 selection_score에 담아야 합니다.
+
+1. 뉴스가산점(0~2) — 웹검색으로 그 종목의 최근 뉴스·이슈를 확인하세요.
+   0=뉴스 없음 / 1=약한 언급 / 2=실적·계약·신사업 등 명확한 이슈 확인
+2. 신호강도(0~2) — 기획 요약에 소셜·공시·수급 중 몇 곳에 등장하는지.
+   0=1곳 / 1=2곳 겹침 / 2=3곳(소셜+공시+수급) 모두 겹침
+3. 시의성(0~2) — 기획 요약 텍스트 기준 얼마나 최근 이슈인지.
+   0=며칠 지난 얘기 / 1=2~3일 이내 / 2=오늘·어제
+4. 스토리(0~2) — 왜 움직이는지 원인이 명확한지.
+   0=원인 불명(순매수 증가만 언급) / 1=약한 원인 / 2=명확한 원인(수주·실적·신사업 등)
+5. 검색수요(0~2) — 아래 [후보 검색트렌드 점수]에 주어진 점수를 '그대로' 사용하세요.
+   해당 종목이 목록에 없거나 "직접 판단" 안내가 있으면 종목 인지도로 당신이 채점하세요.
+
+[중복 규칙] 최근 14일 내 다룬 종목이면 총점에서 -1점(dedup_penalty_applied=true).
+단 감점 전 총점이 8점 이상이면 감점을 적용하지 마세요(dedup_penalty_applied=false) —
+정말 압도적으로 좋은 소재는 최근에 썼어도 계속 다뤄도 됩니다.
+[최근 다룬 종목] 목록과 [후보 검색트렌드 점수]는 사용자 메시지에 주어집니다.
 
 [웹검색 활용 — 필수]
-후보 종목 1~2개를 웹검색으로 확인해 최근 뉴스(실적·계약·업황 등)를 찾고,
-그 내용을 본문에 자연스럽게 녹이세요. 수급 수치만 나열하지 말고
-"왜 지금 이 종목이 화제인지"를 뉴스 근거로 설명하면 내용이 풍부해집니다.
+채점 중(뉴스가산점 확인) 웹검색으로 찾은 뉴스를, 최종 선택된 종목의 본문에도
+자연스럽게 녹이세요. 수급 수치만 나열하지 말고 "왜 지금 이 종목이 화제인지"를
+뉴스 근거로 설명하면 내용이 풍부해집니다.
 인용한 사실은 <a href="URL" target="_blank" rel="noopener">출처명</a> 링크로 표기하세요.
 검색 중에는 텍스트를 출력하지 말고, 조사가 끝난 뒤 마지막에 최종 JSON만 출력하세요.
 
@@ -120,6 +174,10 @@ _DRAFT_SYSTEM = """\
   "tags": ["태그1", "태그2"],
   "primary_name": "이 글이 집중하는 대표 종목명 (예: 메리츠금융지주)",
   "primary_ticker": "그 종목의 6자리 코드 (모르면 빈 문자열)",
+  "selection_score": {
+    "news": 0, "signal": 0, "timeliness": 0, "story": 0, "search_demand": 0,
+    "total": 0, "dedup_penalty_applied": false
+  },
   "content_html": "<h2>...</h2><p>...</p>"
 }
 """
@@ -163,6 +221,7 @@ _REVISE_SYSTEM = """\
        글 끝 FAQ 3~5개(<div class="ms-faq"><p class="ms-q">Q. …</p><p class="ms-a">A. …</p>…</div>)
 [주의] 과장·단정 금지, 마지막에 투자 유의 문구 문단 유지.
        1차 초안의 뉴스 인용과 출처 링크(<a href="...">)는 삭제하지 말고 유지·다듬기만 하세요.
+       1차 초안의 selection_score는 재계산하지 말고 그대로 복사하세요(글만 다듬는 단계입니다).
 
 [응답 형식] 반드시 아래 JSON만 출력. 다른 텍스트 없이:
 {
@@ -171,6 +230,10 @@ _REVISE_SYSTEM = """\
   "tags": ["태그1", "태그2"],
   "primary_name": "이 글이 집중하는 대표 종목명",
   "primary_ticker": "그 종목의 6자리 코드 (모르면 빈 문자열)",
+  "selection_score": {
+    "news": 0, "signal": 0, "timeliness": 0, "story": 0, "search_demand": 0,
+    "total": 0, "dedup_penalty_applied": false
+  },
   "content_html": "<h2>...</h2><p>...</p>"
 }
 """
@@ -207,13 +270,20 @@ def _generate_article(sources):
     src_block = _format_sources(sources)
     recent = _format_recent_history()
 
-    # 1단계: Sonnet 초안 (소재 선별 + 웹검색으로 뉴스 확인 + 작성)
+    # 0단계: 후보 종목 추출 → 네이버 검색트렌드로 검색수요 사전 채점(best-effort)
+    log.info("0/3 후보 종목 추출 + 검색트렌드 채점 중...")
+    candidates = _extract_candidates(sources)
+    trend_block = _format_trend_scores(candidates)
+
+    # 1단계: Sonnet 초안 (채점표대로 소재 선별 + 웹검색으로 뉴스 확인 + 작성)
     log.info("1/3 초안 작성 중... (%s, 웹검색)", ai.MODEL_DRAFT)
     draft_raw = ai.call(
         api, ai.MODEL_DRAFT, _DRAFT_SYSTEM,
         f"[최근 기획 요약들]\n{src_block}\n\n"
-        f"[최근 다룬 종목 — 후순위로 고려]\n{recent}\n\n"
-        "위에서 가장 좋은 소재 하나를 골라, 웹검색으로 관련 뉴스를 확인한 뒤 글을 쓰세요.",
+        f"[최근 다룬 종목 — 중복 페널티 판단용]\n{recent}\n\n"
+        f"[후보 검색트렌드 점수]\n{trend_block}\n\n"
+        "위 채점표대로 각 항목을 채점해 가장 좋은 소재 하나를 고르고,"
+        " 웹검색으로 관련 뉴스를 확인한 뒤 글을 쓰세요.",
         max_tokens=8000,   # 본문+표+FAQ가 JSON에 담겨 길어짐 → 잘림 방지
         tools=[ai.WEB_SEARCH_TOOL],
     )
@@ -351,31 +421,48 @@ def _attach_visuals(article, date_str):
 
 
 def _log_seo_review_to_notion(audit, article, date_str):
-    """SEO 검수 결과(점수·바꾼 부분·이유)를 노션에 기록. NOTION_DB_SEO 미설정 시 생략."""
+    """소재 선정 점수 + SEO 검수 결과를 노션에 기록. NOTION_DB_SEO 미설정 시 생략."""
     db_id = config.get_optional("NOTION_DB_SEO")
     if not db_id:
-        log.info("NOTION_DB_SEO 미설정 — SEO 검토 기록 생략")
+        log.info("NOTION_DB_SEO 미설정 — 검토 기록 생략")
         return
-    if not audit:
-        log.info("검수 결과 없음 — SEO 검토 기록 생략")
+    score = article.get("selection_score") or {}
+    if not audit and not score:
+        log.info("검수·채점 결과 없음 — 검토 기록 생략")
         return
 
     title = f"🔍 SEO 검토 {date_str} — {article.get('title', '')}"
-    blocks = [
-        nc.paragraph(f"SEO 점수: {audit.get('score', '-')}/100"),
-        nc.paragraph(f"총평: {audit.get('overall', '')}"),
-    ]
-    findings = audit.get("findings", [])
-    if findings:
-        blocks.append(nc.heading("개선 항목 (바꾼 부분 · 이유)", 2))
-        for f in findings:
-            blocks.append(nc.bullet(f"[{f.get('area', '')}] {f.get('issue', '')}"))
-            blocks.append(nc.paragraph(f"→ 개선: {f.get('fix', '')}"))
-    else:
-        blocks.append(nc.paragraph("지적 사항 없음 (양호)"))
+    blocks = []
+
+    if score:
+        dedup = "적용됨" if score.get("dedup_penalty_applied") else "미적용"
+        blocks += [
+            nc.heading("소재 선정 점수", 2),
+            nc.paragraph(f"총점: {score.get('total', '-')}/10 (중복 페널티: {dedup})"),
+            nc.bullet(f"뉴스가산점: {score.get('news', '-')}/2"),
+            nc.bullet(f"신호강도: {score.get('signal', '-')}/2"),
+            nc.bullet(f"시의성: {score.get('timeliness', '-')}/2"),
+            nc.bullet(f"스토리: {score.get('story', '-')}/2"),
+            nc.bullet(f"검색수요: {score.get('search_demand', '-')}/2"),
+        ]
+
+    if audit:
+        blocks += [
+            nc.heading("SEO 문장·구조 검수", 2),
+            nc.paragraph(f"SEO 점수: {audit.get('score', '-')}/100"),
+            nc.paragraph(f"총평: {audit.get('overall', '')}"),
+        ]
+        findings = audit.get("findings", [])
+        if findings:
+            blocks.append(nc.heading("개선 항목 (바꾼 부분 · 이유)", 3))
+            for f in findings:
+                blocks.append(nc.bullet(f"[{f.get('area', '')}] {f.get('issue', '')}"))
+                blocks.append(nc.paragraph(f"→ 개선: {f.get('fix', '')}"))
+        else:
+            blocks.append(nc.paragraph("지적 사항 없음 (양호)"))
 
     nc.create_page_in_database(db_id, title, blocks)
-    log.info("SEO 검토 기록 저장 완료(노션)")
+    log.info("검토 기록 저장 완료(노션)")
 
 
 def main():
@@ -432,6 +519,9 @@ def main():
             f"{date_str} SEO 글 초안 완성",
             f"📝 {article.get('title', '')}",
         ]
+        score = article.get("selection_score") or {}
+        if score.get("total") is not None:
+            tg_lines.append(f"🎯 소재 점수: {score.get('total')}/10")
         if audit and audit.get("score") is not None:
             tg_lines.append(f"🔍 SEO 점수: {audit.get('score')}/100")
         if featured_id:

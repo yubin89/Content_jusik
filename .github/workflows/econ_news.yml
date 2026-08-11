@@ -1,0 +1,37 @@
+name: econ_news
+
+# 월~금 저녁 18:00 KST(=09:00 UTC)에 실행.
+# 웹검색으로 한국·미국 경제뉴스를 찾아 원본 해설을 작성해 워드프레스 초안으로 저장.
+# 노션 수집 데이터와 무관한 독립 콘텐츠 — NOTION_DB_D 불필요.
+# ⚠️ GitHub Actions 무료 cron은 best-effort(수~수십 분 지연 가능).
+# ⚠️ schedule은 기본 브랜치(main)의 워크플로에서만 발동.
+on:
+  schedule:
+    - cron: "0 9 * * 1-5"   # 월~금 18:00 KST
+  workflow_dispatch:
+
+jobs:
+  econ_news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write economic news commentary and save as WordPress draft
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}   # 본문 실사 사진용(선택). 없으면 실사만 생략
+          WP_URL: ${{ secrets.WP_URL }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m scripts.econ_news

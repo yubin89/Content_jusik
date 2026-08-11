@@ -34,6 +34,8 @@ jobs:
           NOTION_DB_SEO: ${{ secrets.NOTION_DB_SEO }}   # SEO 검토 기록용(선택). 없으면 기록만 생략
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}   # 본문 실사 사진용(선택). 없으면 실사만 생략
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}       # 검색수요 채점용(선택). 없으면 Claude가 정성 판단
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           WP_URL: ${{ secrets.WP_URL }}
           WP_USER: ${{ secrets.WP_USER }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
