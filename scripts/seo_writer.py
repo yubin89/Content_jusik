@@ -5,8 +5,9 @@ scripts/seo_writer.py — 노션 D → SEO 블로그 글 작성 → 워드프레
 '하나'를 골라 구글 SEO에 최적화된 한국어 블로그 글을 작성하고, 워드프레스에
 '초안(draft)'으로 저장한다. 초안이므로 사람이 검토·수정한 뒤 직접 발행한다.
 
-주 3회(월·수·금)만 실행한다 — 매일 대량 발행은 구글에 '양산형'으로 찍혀
+주 2회(월·수)만 실행한다 — 매일 대량 발행은 구글에 '양산형'으로 찍혀
 오히려 불리하므로, 며칠 치 중 최고를 골라 품질에 집중한다.
+(화~금은 econ_news.py가, 일요일은 weekly_calendar.py가 다른 콘텐츠를 발행한다.)
 
 글 생성은 3단계 비평-반영(reflection) 파이프라인:
   1) Sonnet 초안 → 2) Opus 검수(개선 가이드만) → 3) Sonnet 최종본
@@ -16,49 +17,30 @@ scripts/seo_writer.py — 노션 D → SEO 블로그 글 작성 → 워드프레
   WP_URL, WP_USER, WP_APP_PASSWORD
   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
   NOTION_DB_SEO (선택) — 있으면 SEO 검토 결과(점수·바꾼 부분·이유)를 여기에 기록
+  UNSPLASH_ACCESS_KEY (선택) — 있으면 본문에 실사 사진도 삽입
 """
-import json
 import sys
 import urllib.parse
 from datetime import datetime
 
-import anthropic
 import pytz
 import requests
 
-from scripts.common import config, notify, cards, stock_photo
+from scripts.common import ai, config, notify, cards, stock_photo, wp_publish
 from scripts.common.logger import get_logger
 import scripts.common.notion_client as nc
 
 log = get_logger("seo_writer")
 STAGE = "SEO 글 작성"
 
-# 3단계 비평-반영 파이프라인의 모델.
-# Sonnet-only로 비용을 더 줄이려면 _review(Opus) 단계를 건너뛰면 됨.
-MODEL_DRAFT = "claude-sonnet-4-6"   # 1·3단계: 초안/최종 작성(저렴)
-MODEL_REVIEW = "claude-opus-4-8"    # 2단계: 검수·개선 가이드(짧은 출력이라 저렴)
-
 KST = pytz.timezone("Asia/Seoul")
 RECENT_COUNT = 4            # 최근 노션 D 몇 개를 놓고 소재를 고를지
 MAX_SOURCE_LEN = 4000       # 기획 요약 1개당 최대 길이
-HTTP_TIMEOUT = 60
 
-# ---- 이미지/차트 (best-effort: 실패해도 글은 저장) ----
+# ---- 이미지 (best-effort: 실패해도 글은 저장) ----
 IMAGE_PROVIDER = "pollinations"   # 대표 이미지 생성. 무료·키 불필요. 나중에 openai/google로 교체
 IMAGE_GEN_TIMEOUT = 120           # 이미지 생성은 오래 걸릴 수 있음
 FEATURED_SIZE = (1200, 630)       # 대표 이미지(og:image 표준 비율)
-
-# 본문 표(.ms-tbl)·FAQ(.ms-faq) 스타일 — 글 상단에 주입(캐롯 블로그 느낌)
-_STYLE_BLOCK = """<style>
-.ms-tbl{width:100%;border-collapse:collapse;margin:24px 0;font-size:15px}
-.ms-tbl th{background:#f3f0ff;color:#6d28d9;text-align:left;padding:13px 16px;font-weight:700}
-.ms-tbl td{padding:13px 16px;border-top:1px solid #eee}
-.ms-tbl td:first-child{color:#ea580c;font-weight:700}
-.ms-faq{margin:28px 0}
-.ms-faq .ms-q{border-left:4px solid #2563eb;padding:6px 14px;margin-top:18px;font-weight:700;color:#1d4ed8}
-.ms-faq .ms-a{padding:4px 14px 4px 18px;color:#374151;line-height:1.7}
-</style>
-"""
 
 
 # ---- 노션 D 읽기 ----
@@ -181,31 +163,6 @@ _REVISE_SYSTEM = """\
 """
 
 
-def _client():
-    return anthropic.Anthropic(api_key=config.get("ANTHROPIC_API_KEY"))
-
-
-def _call(api, model, system, user, max_tokens):
-    """Claude 호출 후 응답 텍스트(문자열) 반환."""
-    resp = api.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-    return resp.content[0].text.strip()
-
-
-def _parse_json(raw):
-    """```json ... ``` 코드블록으로 감싸인 경우까지 대응해 dict로 파싱."""
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-        raw = raw.strip()
-    return json.loads(raw)
-
-
 def _format_guide(audit):
     """검수 결과(dict)를 Sonnet에게 줄 개선 가이드 텍스트로 변환."""
     lines = []
@@ -218,27 +175,27 @@ def _format_guide(audit):
 
 def _generate_article(sources):
     """3단계(초안→검수→최종) 파이프라인. (최종 기사 dict, 검수 결과 dict|None) 반환."""
-    api = _client()
+    api = ai.client()
     src_block = _format_sources(sources)
 
     # 1단계: Sonnet 초안 (소재 선별 + 작성)
-    log.info("1/3 초안 작성 중... (%s)", MODEL_DRAFT)
-    draft_raw = _call(
-        api, MODEL_DRAFT, _DRAFT_SYSTEM,
+    log.info("1/3 초안 작성 중... (%s)", ai.MODEL_DRAFT)
+    draft_raw = ai.call(
+        api, ai.MODEL_DRAFT, _DRAFT_SYSTEM,
         f"[최근 기획 요약들]\n{src_block}\n\n위에서 가장 좋은 소재 하나를 골라 글을 쓰세요.",
         max_tokens=8000,   # 본문+표+FAQ가 JSON에 담겨 길어짐 → 잘림 방지
     )
 
     # 2단계: Opus SEO 검수 (체크리스트 기반 점수 + 개선점, 재작성 X)
     # max_tokens는 넉넉히 — 한국어 findings가 길어 잘리면 JSON 파싱이 실패한다.
-    log.info("2/3 SEO 검수 중... (%s)", MODEL_REVIEW)
-    audit_raw = _call(
-        api, MODEL_REVIEW, _REVIEW_SYSTEM,
+    log.info("2/3 SEO 검수 중... (%s)", ai.MODEL_REVIEW)
+    audit_raw = ai.call(
+        api, ai.MODEL_REVIEW, _REVIEW_SYSTEM,
         f"[검수할 초안]\n{draft_raw}",
         max_tokens=3000,
     )
     try:
-        audit = _parse_json(audit_raw)
+        audit = ai.parse_json(audit_raw)
         guide = _format_guide(audit)
     except Exception as exc:
         log.warning("검수 결과 JSON 파싱 실패 — 텍스트 그대로 사용: %s", exc)
@@ -246,75 +203,14 @@ def _generate_article(sources):
         guide = audit_raw
 
     # 3단계: Sonnet 최종본 (가이드 반영)
-    log.info("3/3 최종본 작성 중... (%s)", MODEL_DRAFT)
-    final_raw = _call(
-        api, MODEL_DRAFT, _REVISE_SYSTEM,
+    log.info("3/3 최종본 작성 중... (%s)", ai.MODEL_DRAFT)
+    final_raw = ai.call(
+        api, ai.MODEL_DRAFT, _REVISE_SYSTEM,
         f"[1차 초안]\n{draft_raw}\n\n[편집장 개선 가이드]\n{guide}\n\n"
         "위를 반영해 최종 글을 완성하세요.",
         max_tokens=8000,   # 본문+표+FAQ 포함 → 잘림 방지
     )
-    return _parse_json(final_raw), audit
-
-
-# ---- 워드프레스 REST API ----
-
-def _wp_auth():
-    return (config.get("WP_USER"), config.get("WP_APP_PASSWORD"))
-
-
-def _wp_base():
-    return config.get("WP_URL").rstrip("/") + "/wp-json/wp/v2"
-
-
-def _resolve_tag_ids(tag_names):
-    """태그 이름 → 워드프레스 태그 ID로 변환(없으면 생성). 실패해도 글 저장은 막지 않음."""
-    ids = []
-    base = _wp_base()
-    auth = _wp_auth()
-    for name in tag_names:
-        try:
-            r = requests.get(
-                f"{base}/tags", params={"search": name}, auth=auth, timeout=HTTP_TIMEOUT
-            )
-            r.raise_for_status()
-            found = [t for t in r.json() if t.get("name") == name]
-            if found:
-                ids.append(found[0]["id"])
-                continue
-            c = requests.post(
-                f"{base}/tags", json={"name": name}, auth=auth, timeout=HTTP_TIMEOUT
-            )
-            c.raise_for_status()
-            ids.append(c.json()["id"])
-        except Exception as exc:
-            log.warning("태그 '%s' 처리 실패(건너뜀): %s", name, exc)
-    return ids
-
-
-def _upload_wp_media(image_bytes, content_type, filename, alt=None):
-    """워드프레스 미디어 업로드 → (media_id, source_url). alt 있으면 대체텍스트도 설정."""
-    ext = "png" if "png" in content_type else "jpg"
-    headers = {
-        "Content-Disposition": f'attachment; filename="{filename}.{ext}"',
-        "Content-Type": content_type,
-    }
-    resp = requests.post(
-        f"{_wp_base()}/media", headers=headers, data=image_bytes,
-        auth=_wp_auth(), timeout=HTTP_TIMEOUT,
-    )
-    resp.raise_for_status()
-    media = resp.json()
-    mid = media["id"]
-    if alt:
-        try:
-            r = requests.post(
-                f"{_wp_base()}/media/{mid}", json={"alt_text": alt, "caption": alt},
-                auth=_wp_auth(), timeout=HTTP_TIMEOUT,
-            )
-            r.raise_for_status()
-        except Exception as exc:
-            log.warning("이미지 alt 설정 실패(건너뜀): %s", exc)
-    return mid, media.get("source_url", "")
+    return ai.parse_json(final_raw), audit
 
 
 # ---- 대표 이미지(AI 컨셉) 생성 ----
@@ -340,10 +236,10 @@ _IMAGE_META_SYSTEM = """\
 
 def _generate_image_meta(article):
     """대표 이미지 프롬프트/ALT + 실사 사진 검색어/ALT 생성."""
-    api = _client()
+    api = ai.client()
     user = f"제목: {article.get('title', '')}\n요약: {article.get('meta_description', '')}"
-    raw = _call(api, MODEL_DRAFT, _IMAGE_META_SYSTEM, user, max_tokens=500)
-    return _parse_json(raw)
+    raw = ai.call(api, ai.MODEL_DRAFT, _IMAGE_META_SYSTEM, user, max_tokens=500)
+    return ai.parse_json(raw)
 
 
 def _pollinations_image(prompt, width, height):
@@ -367,22 +263,6 @@ def _generate_image(prompt, size):
     raise ValueError(f"지원하지 않는 IMAGE_PROVIDER: {IMAGE_PROVIDER}")
 
 
-def _insert_inline_image(html, img_url, alt, caption=None, before_h2=0):
-    """본문의 (before_h2)번째 <h2> 앞에 이미지(+캡션)를 삽입.
-    해당 <h2>가 없으면 맨 뒤에 붙인다(이미지들이 겹치지 않게 위치를 분산)."""
-    cap = f"<figcaption>{caption}</figcaption>" if caption else ""
-    fig = f'<figure><img src="{img_url}" alt="{alt}" />{cap}</figure>'
-    idx, start = -1, 0
-    for _ in range(before_h2 + 1):
-        idx = html.find("<h2", start)
-        if idx == -1:
-            break
-        start = idx + 3
-    if idx == -1:
-        return html + fig
-    return html[:idx] + fig + html[idx:]
-
-
 def _attach_visuals(article, date_str):
     """본문 데이터 카드 + 실사 사진 + 대표(AI 컨셉) 이미지를 붙인다.
     featured_media id 반환(없으면 None). 각 이미지는 best-effort — 실패해도 글 저장은 계속."""
@@ -399,9 +279,9 @@ def _attach_visuals(article, date_str):
             ticker=article.get("primary_ticker"), name=article.get("primary_name"),
         )
         if png:
-            _, src = _upload_wp_media(png, "image/png", f"card-{date_str}", alt=card_alt)
+            _, src = wp_publish.upload_media(png, "image/png", f"card-{date_str}", alt=card_alt)
             if src:
-                article["content_html"] = _insert_inline_image(
+                article["content_html"] = wp_publish.insert_inline_image(
                     article.get("content_html", ""), src, card_alt,
                     caption="자료: 한국거래소(KRX) 기관 순매수 데이터", before_h2=0,
                 )
@@ -414,11 +294,11 @@ def _attach_visuals(article, date_str):
         photo = stock_photo.search_photo(meta.get("photo_query"))
         if photo:
             p_alt = meta.get("photo_alt") or article.get("title", "")
-            _, src = _upload_wp_media(
+            _, src = wp_publish.upload_media(
                 photo["bytes"], photo["content_type"], f"photo-{date_str}", alt=p_alt)
             if src:
                 credit = f'사진: {photo["credit_name"]} / Unsplash'
-                article["content_html"] = _insert_inline_image(
+                article["content_html"] = wp_publish.insert_inline_image(
                     article.get("content_html", ""), src, p_alt,
                     caption=credit, before_h2=2,
                 )
@@ -429,35 +309,13 @@ def _attach_visuals(article, date_str):
     # 3) 대표 이미지: AI 컨셉 (썸네일/CTR용)
     try:
         img, ctype = _generate_image(meta.get("featured_prompt", ""), FEATURED_SIZE)
-        featured_id, _ = _upload_wp_media(
+        featured_id, _ = wp_publish.upload_media(
             img, ctype, f"featured-{date_str}", alt=meta.get("featured_alt"))
         log.info("대표 이미지 업로드 완료 (media %s)", featured_id)
     except Exception as exc:
         log.warning("대표 이미지 실패(생략): %s", exc)
 
     return featured_id
-
-
-def _create_draft(article, date_str, featured_media=None):
-    """워드프레스에 초안(draft) 글을 만들고 편집/미리보기 URL을 반환."""
-    payload = {
-        "title": article.get("title", f"주목 종목 브리핑 {date_str}"),
-        "content": _STYLE_BLOCK + article.get("content_html", ""),
-        "excerpt": article.get("meta_description", ""),
-        "status": "draft",
-    }
-    if featured_media:
-        payload["featured_media"] = featured_media
-    tag_ids = _resolve_tag_ids(article.get("tags", []))
-    if tag_ids:
-        payload["tags"] = tag_ids
-
-    resp = requests.post(
-        f"{_wp_base()}/posts", json=payload, auth=_wp_auth(), timeout=HTTP_TIMEOUT
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    return data.get("link") or data.get("guid", {}).get("rendered", "")
 
 
 def _log_seo_review_to_notion(audit, article, date_str):
@@ -509,11 +367,18 @@ def main():
 
         article, audit = _generate_article(sources)
 
-        # 본문 데이터 차트 + 대표 이미지 (best-effort: 실패해도 글은 저장)
+        # 본문 데이터 카드 + 실사 사진 + 대표 이미지 (best-effort: 실패해도 글은 저장)
         featured_id = _attach_visuals(article, date_str)
 
         log.info("워드프레스 초안 저장 중...")
-        link = _create_draft(article, date_str, featured_media=featured_id)
+        link = wp_publish.create_draft(
+            title=article.get("title"),
+            content_html=article.get("content_html", ""),
+            excerpt=article.get("meta_description", ""),
+            tags=article.get("tags", []),
+            featured_media=featured_id,
+            fallback_title=f"주목 종목 브리핑 {date_str}",
+        )
         log.info("초안 저장 완료: %s", link)
 
         # SEO 검토 결과(점수·바꾼 부분·이유)를 노션에 기록 (실패해도 전체는 성공 처리)
