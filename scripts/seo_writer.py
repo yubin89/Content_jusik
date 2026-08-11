@@ -26,7 +26,7 @@ from datetime import datetime
 import pytz
 import requests
 
-from scripts.common import ai, config, notify, cards, stock_photo, wp_publish
+from scripts.common import ai, config, notify, cards, history, stock_photo, wp_publish
 from scripts.common.logger import get_logger
 import scripts.common.notion_client as nc
 
@@ -76,10 +76,22 @@ _DRAFT_SYSTEM = """\
 가장 좋은 종목/주제 '하나'만 골라, 그 주제에 집중한 글 한 편을 작성하세요.
 
 [소재 선택 기준] (우선순위 순)
-1. 신호 강도 — 소셜·공시·수급 중 2곳 이상에 겹쳐 등장한 종목을 최우선
-2. 시의성 — 지금 다루기 좋은 따끈한 이슈인가
-3. 스토리 — 왜 움직이는지 설명할 근거(수주·실적·테마 등)가 명확한가
-4. 검색 수요 — 사람들이 검색해볼 법한 종목/테마인가
+1. 최근 중복 회피 — [최근 다룬 종목] 목록에 있는 종목은 후순위로 미루세요.
+   신호가 강해도 최근에 이미 썼다면 다른 종목을 우선 고려하세요(콘텐츠 다양성 확보).
+2. 뉴스 소재 유무(가산점) — 웹검색으로 그 종목의 최근 뉴스·이슈를 확인해,
+   실적·계약·신사업·업계 동향 등 '이야기할 거리'가 있는 종목을 우대하세요.
+   수급 데이터만 있고 딱히 다룰 뉴스가 없는 종목보다 낫습니다.
+3. 신호 강도 — 소셜·공시·수급 중 2곳 이상에 겹쳐 등장한 종목
+4. 시의성 — 지금 다루기 좋은 따끈한 이슈인가
+5. 스토리 — 왜 움직이는지 설명할 근거(수주·실적·테마 등)가 명확한가
+6. 검색 수요 — 사람들이 검색해볼 법한 종목/테마인가
+
+[웹검색 활용 — 필수]
+후보 종목 1~2개를 웹검색으로 확인해 최근 뉴스(실적·계약·업황 등)를 찾고,
+그 내용을 본문에 자연스럽게 녹이세요. 수급 수치만 나열하지 말고
+"왜 지금 이 종목이 화제인지"를 뉴스 근거로 설명하면 내용이 풍부해집니다.
+인용한 사실은 <a href="URL" target="_blank" rel="noopener">출처명</a> 링크로 표기하세요.
+검색 중에는 텍스트를 출력하지 말고, 조사가 끝난 뒤 마지막에 최종 JSON만 출력하세요.
 
 [독자] 주식 계좌를 갖고 기본 매매는 해본 입문~초중급 개인투자자.
        '수급·공시·테마' 같은 기본 용어는 이미 아는 사람.
@@ -149,7 +161,8 @@ _REVISE_SYSTEM = """\
 [구조] <h2> 소제목 3~5개
 [필수 구성] 본문 중간 비교/요약 표 1개(<table class="ms-tbl">…, 첫 열=항목명, 3~4행) +
        글 끝 FAQ 3~5개(<div class="ms-faq"><p class="ms-q">Q. …</p><p class="ms-a">A. …</p>…</div>)
-[주의] 과장·단정 금지, 마지막에 투자 유의 문구 문단 유지
+[주의] 과장·단정 금지, 마지막에 투자 유의 문구 문단 유지.
+       1차 초안의 뉴스 인용과 출처 링크(<a href="...">)는 삭제하지 말고 유지·다듬기만 하세요.
 
 [응답 형식] 반드시 아래 JSON만 출력. 다른 텍스트 없이:
 {
@@ -173,17 +186,36 @@ def _format_guide(audit):
     return "\n".join(lines)
 
 
+def _format_recent_history():
+    """최근 다룬 종목 목록을 프롬프트에 넣을 텍스트로 변환."""
+    pairs = history.recent_tickers(days=14)
+    if not pairs:
+        return "(최근 기록 없음)"
+    names = [f"{name}({ticker})" if ticker else name for ticker, name in pairs if name or ticker]
+    # 중복 제거하면서 순서 유지
+    seen, uniq = set(), []
+    for n in names:
+        if n not in seen:
+            seen.add(n)
+            uniq.append(n)
+    return ", ".join(uniq) if uniq else "(최근 기록 없음)"
+
+
 def _generate_article(sources):
     """3단계(초안→검수→최종) 파이프라인. (최종 기사 dict, 검수 결과 dict|None) 반환."""
     api = ai.client()
     src_block = _format_sources(sources)
+    recent = _format_recent_history()
 
-    # 1단계: Sonnet 초안 (소재 선별 + 작성)
-    log.info("1/3 초안 작성 중... (%s)", ai.MODEL_DRAFT)
+    # 1단계: Sonnet 초안 (소재 선별 + 웹검색으로 뉴스 확인 + 작성)
+    log.info("1/3 초안 작성 중... (%s, 웹검색)", ai.MODEL_DRAFT)
     draft_raw = ai.call(
         api, ai.MODEL_DRAFT, _DRAFT_SYSTEM,
-        f"[최근 기획 요약들]\n{src_block}\n\n위에서 가장 좋은 소재 하나를 골라 글을 쓰세요.",
+        f"[최근 기획 요약들]\n{src_block}\n\n"
+        f"[최근 다룬 종목 — 후순위로 고려]\n{recent}\n\n"
+        "위에서 가장 좋은 소재 하나를 골라, 웹검색으로 관련 뉴스를 확인한 뒤 글을 쓰세요.",
         max_tokens=8000,   # 본문+표+FAQ가 JSON에 담겨 길어짐 → 잘림 방지
+        tools=[ai.WEB_SEARCH_TOOL],
     )
 
     # 2단계: Opus SEO 검수 (체크리스트 기반 점수 + 개선점, 재작성 X)
@@ -380,6 +412,15 @@ def main():
             fallback_title=f"주목 종목 브리핑 {date_str}",
         )
         log.info("초안 저장 완료: %s", link)
+
+        # 이 종목을 다뤘다고 기록 — 다음에 같은 종목이 계속 뽑히지 않도록(실패해도 무방)
+        try:
+            history.record(
+                date_str, article.get("primary_ticker"), article.get("primary_name"),
+                source="seo_writer",
+            )
+        except Exception as exc:
+            log.warning("콘텐츠 이력 기록 실패(건너뜀): %s", exc)
 
         # SEO 검토 결과(점수·바꾼 부분·이유)를 노션에 기록 (실패해도 전체는 성공 처리)
         try:
