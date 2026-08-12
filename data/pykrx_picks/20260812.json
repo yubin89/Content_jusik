@@ -1,0 +1,77 @@
+{
+  "date": "20260812",
+  "picks": [
+    {
+      "ticker": "131290",
+      "name": "티에스이",
+      "entry_close": 250000.0,
+      "score": 2,
+      "rs": null,
+      "streak": 9,
+      "inst_sum": 51043064950.0,
+      "badges": [
+        "매물대가벼움"
+      ]
+    },
+    {
+      "ticker": "006400",
+      "name": "삼성SDI",
+      "entry_close": 485500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 144055506500.0,
+      "badges": []
+    },
+    {
+      "ticker": "006360",
+      "name": "GS건설",
+      "entry_close": 35200.0,
+      "score": 1,
+      "rs": null,
+      "streak": 10,
+      "inst_sum": 143658678500.0,
+      "badges": []
+    },
+    {
+      "ticker": "267270",
+      "name": "HD건설기계",
+      "entry_close": 138500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 6,
+      "inst_sum": 39179703050.0,
+      "badges": []
+    },
+    {
+      "ticker": "108490",
+      "name": "로보티즈",
+      "entry_close": 247500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 16594994000.0,
+      "badges": []
+    },
+    {
+      "ticker": "039030",
+      "name": "이오테크닉스",
+      "entry_close": 385500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 12547031500.0,
+      "badges": []
+    },
+    {
+      "ticker": "175330",
+      "name": "JB금융지주",
+      "entry_close": 27950.0,
+      "score": 1,
+      "rs": null,
+      "streak": 5,
+      "inst_sum": 8303748725.0,
+      "badges": []
+    }
+  ]
+}
