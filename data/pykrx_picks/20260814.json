@@ -5,13 +5,12 @@
       "ticker": "139130",
       "name": "iM금융지주",
       "entry_close": 17470.0,
-      "score": 3,
-      "rs": 0.00044843631720481447,
+      "score": 2,
+      "rs": null,
       "streak": 3,
       "inst_sum": 2506150435.0,
       "badges": [
-        "수축",
-        "RS강"
+        "수축"
       ]
     },
     {
@@ -19,7 +18,7 @@
       "name": "삼성전기",
       "entry_close": 1558000.0,
       "score": 1,
-      "rs": 0.5004709018404635,
+      "rs": null,
       "streak": 3,
       "inst_sum": 178360127500.0,
       "badges": []
