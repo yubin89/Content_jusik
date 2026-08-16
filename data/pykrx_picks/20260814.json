@@ -2,18 +2,6 @@
   "date": "20260814",
   "picks": [
     {
-      "ticker": "139130",
-      "name": "iM금융지주",
-      "entry_close": 17470.0,
-      "score": 2,
-      "rs": null,
-      "streak": 3,
-      "inst_sum": 2506150435.0,
-      "badges": [
-        "수축"
-      ]
-    },
-    {
       "ticker": "009150",
       "name": "삼성전기",
       "entry_close": 1558000.0,
