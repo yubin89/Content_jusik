@@ -1,0 +1,50 @@
+{
+  "date": "20260818",
+  "picks": [
+    {
+      "ticker": "139130",
+      "name": "iM금융지주",
+      "entry_close": 17380.0,
+      "score": 3,
+      "rs": 0.06097696838189404,
+      "streak": 4,
+      "inst_sum": 3058182630.0,
+      "badges": [
+        "수축",
+        "RS강"
+      ]
+    },
+    {
+      "ticker": "064760",
+      "name": "티씨케이",
+      "entry_close": 232000.0,
+      "score": 2,
+      "rs": 0.013941913205913758,
+      "streak": 6,
+      "inst_sum": 40311048850.0,
+      "badges": [
+        "RS강"
+      ]
+    },
+    {
+      "ticker": "475150",
+      "name": "SK이터닉스",
+      "entry_close": 58500.0,
+      "score": 1,
+      "rs": 0.5056248029702369,
+      "streak": 3,
+      "inst_sum": 21557772400.0,
+      "badges": []
+    },
+    {
+      "ticker": "008930",
+      "name": "한미사이언스",
+      "entry_close": 44600.0,
+      "score": 1,
+      "rs": 0.5104175180433258,
+      "streak": 3,
+      "inst_sum": 4981524725.0,
+      "badges": []
+    }
+  ]
+}
