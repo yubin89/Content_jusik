@@ -1,0 +1,77 @@
+{
+  "date": "20260819",
+  "picks": [
+    {
+      "ticker": "139130",
+      "name": "iM금융지주",
+      "entry_close": 17360.0,
+      "score": 2,
+      "rs": null,
+      "streak": 5,
+      "inst_sum": 5284885020.0,
+      "badges": [
+        "수축"
+      ]
+    },
+    {
+      "ticker": "017670",
+      "name": "SK텔레콤",
+      "entry_close": 98000.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 94066071300.0,
+      "badges": []
+    },
+    {
+      "ticker": "039030",
+      "name": "이오테크닉스",
+      "entry_close": 415000.0,
+      "score": 1,
+      "rs": null,
+      "streak": 7,
+      "inst_sum": 76707873250.0,
+      "badges": []
+    },
+    {
+      "ticker": "064760",
+      "name": "티씨케이",
+      "entry_close": 231500.0,
+      "score": 1,
+      "rs": null,
+      "streak": 7,
+      "inst_sum": 42695434600.0,
+      "badges": []
+    },
+    {
+      "ticker": "475150",
+      "name": "SK이터닉스",
+      "entry_close": 57800.0,
+      "score": 1,
+      "rs": null,
+      "streak": 4,
+      "inst_sum": 35055350900.0,
+      "badges": []
+    },
+    {
+      "ticker": "096770",
+      "name": "SK이노베이션",
+      "entry_close": 128900.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 22638538050.0,
+      "badges": []
+    },
+    {
+      "ticker": "004800",
+      "name": "효성",
+      "entry_close": 162600.0,
+      "score": 1,
+      "rs": null,
+      "streak": 3,
+      "inst_sum": 1215902300.0,
+      "badges": []
+    }
+  ]
+}
