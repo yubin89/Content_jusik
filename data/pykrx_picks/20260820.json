@@ -1,0 +1,108 @@
+{
+  "date": "20260820",
+  "picks": [
+    {
+      "ticker": "006340",
+      "name": "대원전선",
+      "entry_close": 14530.0,
+      "score": 3,
+      "rs": 0.1760657676050963,
+      "streak": 3,
+      "inst_sum": 902701875.0,
+      "badges": [
+        "매물대가벼움",
+        "RS강"
+      ]
+    },
+    {
+      "ticker": "006360",
+      "name": "GS건설",
+      "entry_close": 35600.0,
+      "score": 2,
+      "rs": 0.266223841497258,
+      "streak": 3,
+      "inst_sum": 17907380400.0,
+      "badges": [
+        "RS강"
+      ]
+    },
+    {
+      "ticker": "088350",
+      "name": "한화생명",
+      "entry_close": 5510.0,
+      "score": 2,
+      "rs": 0.16885480841393918,
+      "streak": 4,
+      "inst_sum": 5732956120.0,
+      "badges": [
+        "RS강"
+      ]
+    },
+    {
+      "ticker": "017670",
+      "name": "SK텔레콤",
+      "entry_close": 96600.0,
+      "score": 2,
+      "rs": 0.09461568192211922,
+      "streak": 4,
+      "inst_sum": 95111666000.0,
+      "badges": [
+        "RS강"
+      ]
+    },
+    {
+      "ticker": "039030",
+      "name": "이오테크닉스",
+      "entry_close": 415000.0,
+      "score": 2,
+      "rs": 0.04151899023905825,
+      "streak": 8,
+      "inst_sum": 90869528500.0,
+      "badges": [
+        "RS강"
+      ]
+    },
+    {
+      "ticker": "064760",
+      "name": "티씨케이",
+      "entry_close": 229500.0,
+      "score": 2,
+      "rs": 0.03901318502324869,
+      "streak": 8,
+      "inst_sum": 43698477850.0,
+      "badges": [
+        "RS강"
+      ]
+    },
+    {
+      "ticker": "257720",
+      "name": "실리콘투",
+      "entry_close": 45950.0,
+      "score": 1,
+      "rs": 0.49045681139711306,
+      "streak": 4,
+      "inst_sum": 42591294800.0,
+      "badges": []
+    },
+    {
+      "ticker": "010060",
+      "name": "OCI홀딩스",
+      "entry_close": 290000.0,
+      "score": 1,
+      "rs": -0.04596000640087561,
+      "streak": 3,
+      "inst_sum": 29272632750.0,
+      "badges": []
+    },
+    {
+      "ticker": "008930",
+      "name": "한미사이언스",
+      "entry_close": 44250.0,
+      "score": 1,
+      "rs": 0.48332606700284475,
+      "streak": 5,
+      "inst_sum": 7010446350.0,
+      "badges": []
+    }
+  ]
+}
